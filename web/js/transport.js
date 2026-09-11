@@ -14,8 +14,7 @@
  */
 
 import {
-  MODEL_PARAMS,
-  BETAS,
+  requestShape,
   ANTHROPIC_BASE_URL,
   BRIDGE_CANDIDATES,
   BRIDGE_TOKEN,
@@ -76,23 +75,35 @@ export const holonet = {
 /**
  * Issue the request, degrading gracefully if this account/endpoint does not
  * yet accept the newer beta parameters.
+ *
+ * The model and thinking depth are resolved per call rather than captured
+ * once, so a visitor switching either mid-conversation takes effect on their
+ * next message. That is safe here only because `conversation` holds plain
+ * text: thinking blocks are bound to the model that produced them, and a
+ * history replaying them would quietly lose them on a switch.
  */
 async function* runMessages(client, messages, signal, allowBetas = true) {
+  const shape = requestShape();
   const body = {
-    ...MODEL_PARAMS,
+    ...shape.body,
     system: SYSTEM_PROMPT,
     messages,
-    ...(allowBetas ? { betas: BETAS } : {}),
+    ...(allowBetas && shape.betas.length ? { betas: shape.betas } : {}),
   };
   if (!allowBetas) delete body.fallbacks;
 
+  // Only the refusal-fallback models need the beta endpoint; everything else
+  // goes through the stable one, so a model without betas never pays for a
+  // rejected beta round-trip.
+  const useBeta = allowBetas && shape.betas.length > 0;
+
   let stream;
   try {
-    stream = allowBetas
+    stream = useBeta
       ? client.beta.messages.stream(body, { signal })
       : client.messages.stream(body, { signal });
   } catch (err) {
-    if (allowBetas && isBetaRejection(err)) {
+    if (useBeta && isBetaRejection(err)) {
       yield { type: 'notice', text: 'Refusal-fallback beta unavailable; proceeding without it.' };
       yield* runMessages(client, messages, signal, false);
       return;
@@ -117,7 +128,7 @@ async function* runMessages(client, messages, signal, allowBetas = true) {
     }
     yield { type: 'done' };
   } catch (err) {
-    if (allowBetas && isBetaRejection(err)) {
+    if (useBeta && isBetaRejection(err)) {
       yield { type: 'notice', text: 'Refusal-fallback beta unavailable; proceeding without it.' };
       yield* runMessages(client, messages, signal, false);
       return;
@@ -170,6 +181,13 @@ export const bridge = {
   /** Whether that bridge demands a token — set by available(). */
   authRequired: false,
 
+  /**
+   * The model the bridge is configured with. The visitor cannot change this:
+   * the bridge answers on the operator's credential, and the model lives in
+   * its own config. The picker goes read-only and displays this instead.
+   */
+  model: null,
+
   reset() {
     this.sessionId = undefined;
   },
@@ -195,6 +213,7 @@ export const bridge = {
         if (info?.chat === false) continue;
         this.baseUrl = base;
         this.authRequired = Boolean(info?.authRequired);
+        this.model = info?.model ?? null;
         return true;
       } catch {
         // Unreachable, wrong protocol, timed out — try the next candidate.

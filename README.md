@@ -60,7 +60,7 @@ Your site lands at `https://YOURNAME.github.io/YOURREPO/`. The console is built 
 
 ### What you get on Pages, and what you don't
 
-Pages serves static files, so **only Holonet Direct works there** — visitors paste their own Anthropic credential, which is stored in *their* browser (`sessionStorage` by default, `localStorage` if they tick "remember"). The site has no backend and never sees it.
+Pages serves static files, so **only Holonet Direct works there** — visitors paste their own Anthropic credential, which is stored in *their* browser (`sessionStorage` by default, `localStorage` if they tick "remember"). The site has no backend and never sees it. They also pick their own model and reasoning depth from the header; see [Model configuration](#model-configuration).
 
 The Agent SDK needs a process, which Pages does not have. So on Pages the bridge is only reachable if a visitor is running one on their own machine — the console probes for that automatically and falls back. If you want the Agent SDK *hosted*, that is what the [Render deployment](#docker-and-hosting-on-render-for-free) is for; the two can coexist, and a Pages visitor can point at a hosted bridge with:
 
@@ -195,7 +195,21 @@ render.yaml               ← Render Blueprint, free tier
 
 ## Model configuration
 
-`claude-opus-5`, adaptive thinking with `display: "summarized"`, `effort: "low"`, streaming, and server-side refusal fallbacks. The summarized reasoning is rendered in a collapsible **MEDITATION** panel — without it the default `display: "omitted"` shows a dead pause while the model thinks. Effort is `low` because conversational chat doesn't repay a higher setting; raise it in `config.js` / `.env` if you point this at hard technical work.
+**On Holonet Direct the visitor picks.** Two selectors sit in the header — model, and how deeply it reasons. The visitor's own credential pays for the turn, so the choice and its cost belong to them. Both persist per browser (`v4d3r.model`, `v4d3r.level`).
+
+| Model | Depths offered | Default |
+|---|---|---|
+| `claude-opus-5` | Shallow → Absolute (`low`…`max` effort) | Shallow |
+| `claude-sonnet-5` | Shallow → Absolute | Shallow |
+| `claude-haiku-4-5` | Shallow → Deep | Measured |
+
+Defaults are Opus 5 at Shallow: conversational chat doesn't repay deeper reasoning, and it keeps the visitor's bill down. The reasoning itself is rendered in a collapsible **MEDITATION** panel, which is why adaptive thinking is requested with `display: "summarized"` — the API default, `"omitted"`, streams empty thinking blocks and reads as a dead pause.
+
+**The request shape is not portable between models, which is why `MODELS` in `web/js/config.js` is a table rather than one shared params object.** Send Opus 5's parameters to Haiku 4.5 and you get a 400, not a worse answer: Haiku rejects `output_config.effort` outright, and has no adaptive thinking — reasoning there is the older fixed `budget_tokens` ceiling. So each row declares the depths it supports and how they translate, and `requestShape()` assembles the body. Adding a model is one row. Haiku also offers no Profound/Absolute, because those are effort levels and it has no effort parameter; a stored depth that a newly selected model can't accept is coerced at selection time, not at request time.
+
+Switching model mid-conversation is safe and needs no reset. Thinking blocks are bound to the model that produced them and are silently dropped if replayed elsewhere — but the transcript sent back to the API holds plain text only, so there is nothing to lose.
+
+**On the bridge the operator picks**, via `V4D3R_MODEL` / `V4D3R_EFFORT` (`server/src/config.js`). The selectors go read-only and display the bridge's model, read from `/health`. That asymmetry is deliberate: the bridge answers on *your* credential, so letting a visitor choose the model would be letting them choose how much of your balance to spend.
 
 ## Security notes
 

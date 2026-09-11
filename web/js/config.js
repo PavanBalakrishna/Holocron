@@ -6,24 +6,127 @@
  * secret is required.
  */
 
-export const MODEL = 'claude-opus-5';
+export const DEFAULT_MODEL = 'claude-opus-5';
 
-/** Messages API request shape. Kept in one place so both transports agree. */
-export const MODEL_PARAMS = {
-  model: MODEL,
-  max_tokens: 16000,
-  // Opus 5 runs adaptive thinking by default; `summarized` lets us render the
-  // reasoning in the MEDITATION panel instead of showing a dead pause.
-  thinking: { type: 'adaptive', display: 'summarized' },
-  // Chat is not a reasoning-heavy workload — low effort keeps replies snappy
-  // and cheap. Raise to 'high' if you point this at hard technical work.
-  output_config: { effort: 'low' },
-  // Server-side refusal fallback: if a safety classifier declines, the API
-  // reroutes to a suitable model instead of handing back a dead turn.
-  fallbacks: 'default',
+/** Ceiling for one reply. Also bounds Haiku's thinking budget below. */
+export const MAX_TOKENS = 16000;
+
+/**
+ * The models a visitor may pick, and how to ask each one for reasoning.
+ *
+ * This is a table rather than one shared params object because the request
+ * shape is NOT portable across models — sending Opus 5's parameters to Haiku
+ * 4.5 is a 400, not a degraded answer:
+ *
+ *   • `output_config.effort` is rejected outright by Haiku 4.5
+ *   • adaptive thinking does not exist there either; reasoning on that model
+ *     is a fixed `budget_tokens` ceiling, the older mechanism
+ *
+ * So each entry declares which levels it supports and how they translate, and
+ * `requestShape()` below assembles the body. Adding a model means adding a row
+ * here and nothing else.
+ *
+ * `levels` is ordered cheapest → most thorough and drives the picker directly.
+ */
+export const MODELS = {
+  'claude-opus-5': {
+    label: 'Opus 5',
+    blurb: 'Deepest reasoning',
+    thinking: 'adaptive',
+    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+    defaultLevel: 'low',
+    // Server-side refusal fallback: if a safety classifier declines, the API
+    // reroutes to a suitable model instead of handing back a dead turn.
+    // Documented for the Opus 5 / Fable tier, so it is not claimed elsewhere.
+    refusalFallback: true,
+  },
+
+  'claude-sonnet-5': {
+    label: 'Sonnet 5',
+    blurb: 'Fast, capable, cheaper',
+    thinking: 'adaptive',
+    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+    defaultLevel: 'low',
+    refusalFallback: false,
+  },
+
+  'claude-haiku-4-5': {
+    label: 'Haiku 4.5',
+    blurb: 'Cheapest; 200K context',
+    thinking: 'budget',
+    // No `xhigh`/`max`: those are effort levels, and this model has no effort
+    // parameter. The three below map onto thinking-token budgets instead.
+    levels: ['low', 'medium', 'high'],
+    defaultLevel: 'medium',
+    // Must stay under MAX_TOKENS, and the API floor is 1024.
+    budgets: { low: 1024, medium: 4096, high: 8192 },
+    refusalFallback: false,
+  },
 };
 
-export const BETAS = ['server-side-fallback-2026-07-01'];
+/** Human-facing names for the depth picker. */
+export const LEVEL_LABELS = {
+  low: 'Shallow',
+  medium: 'Measured',
+  high: 'Deep',
+  xhigh: 'Profound',
+  max: 'Absolute',
+};
+
+/** Model id the visitor has chosen, falling back to the default. */
+export function currentModel() {
+  const stored = localStorage.getItem('v4d3r.model');
+  return stored && MODELS[stored] ? stored : DEFAULT_MODEL;
+}
+
+/**
+ * Depth the visitor has chosen, coerced to something the current model
+ * actually accepts — a stored `max` must not survive a switch to Haiku.
+ */
+export function currentLevel(model = currentModel()) {
+  const spec = MODELS[model];
+  const stored = localStorage.getItem('v4d3r.level');
+  return stored && spec.levels.includes(stored) ? stored : spec.defaultLevel;
+}
+
+export function setModel(model) {
+  if (MODELS[model]) localStorage.setItem('v4d3r.model', model);
+}
+
+export function setLevel(level) {
+  localStorage.setItem('v4d3r.level', level);
+}
+
+/**
+ * Build the per-request body fragment and beta list for a model and depth.
+ *
+ * @returns {{body: object, betas: string[]}}
+ */
+export function requestShape(model = currentModel(), level = currentLevel(model)) {
+  const spec = MODELS[model] ?? MODELS[DEFAULT_MODEL];
+  const depth = spec.levels.includes(level) ? level : spec.defaultLevel;
+
+  const body = { model, max_tokens: MAX_TOKENS };
+
+  if (spec.thinking === 'adaptive') {
+    // `display: summarized` is what fills the MEDITATION panel — the default
+    // is `omitted`, which streams empty thinking blocks and reads as a dead
+    // pause while the model works.
+    body.thinking = { type: 'adaptive', display: 'summarized' };
+    body.output_config = { effort: depth };
+  } else {
+    // The pre-effort mechanism: a hard ceiling, no `display` field.
+    body.thinking = { type: 'enabled', budget_tokens: spec.budgets[depth] };
+  }
+
+  const betas = [];
+  if (spec.refusalFallback) {
+    body.fallbacks = 'default';
+    betas.push('server-side-fallback-2026-07-01');
+  }
+
+  return { body, betas };
+}
 
 export const ANTHROPIC_BASE_URL = 'https://api.anthropic.com';
 

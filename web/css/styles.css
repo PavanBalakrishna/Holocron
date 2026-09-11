@@ -163,6 +163,44 @@ header {
 .chip[data-state="error"]   { color: var(--sith);  border-color: rgba(255,43,43,.4); }
 .chip[data-state="error"] .led   { background: var(--sith); }
 
+/* Model + depth pickers. Styled as chips so the header reads as one cluster
+   of instrument panels rather than a form dropped into a console. */
+.pick {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 5px 9px;
+  color: var(--steel);
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  cursor: pointer;
+  max-width: 10.5rem;
+  transition: color .16s, border-color .16s, background .16s;
+}
+.pick:hover:enabled {
+  color: var(--sith);
+  border-color: var(--sith-deep);
+  background: var(--panel-hi);
+}
+.pick:focus-visible {
+  outline: 1px solid var(--sith);
+  outline-offset: 1px;
+}
+.pick:disabled {
+  color: var(--steel-dim);
+  cursor: not-allowed;
+  opacity: .8;
+}
+/* Native dropdown lists inherit the OS palette otherwise, which on a light
+   system theme renders near-white text on near-white. */
+.pick option {
+  background: var(--hull);
+  color: var(--ice);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 button.ghost {
   font-family: var(--mono);
   font-size: 10px;

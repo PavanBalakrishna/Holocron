@@ -58,15 +58,48 @@ const webRoot = join(here, '..', '..', 'web');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
-app.use(
-  cors({
-    origin(origin, cb) {
-      // Same-origin / curl requests arrive with no Origin header.
-      if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      cb(new Error(`Origin ${origin} is not permitted. Add it to V4D3R_ORIGINS.`));
-    },
-  }),
-);
+
+/**
+ * Who may drive this server from a browser.
+ *
+ * Three things this gets right that a global `cors({origin})` did not:
+ *
+ *  1. It is mounted on the API routes only. `<script type="module">` is
+ *     fetched in CORS mode even same-origin, so a global allowlist rejected
+ *     the console's own JavaScript with a 500 whenever the server's origin
+ *     was not in V4D3R_ORIGINS — which is every deployment on a port other
+ *     than 8787, and any container run without V4D3R_PUBLIC_URL set.
+ *     Serving the static console is not a cross-origin question at all.
+ *
+ *  2. Same-origin is decided from the request's own Host header, which is
+ *     what the browser actually asked for, rather than from a configured
+ *     public URL that may be absent or stale. A page can always talk to the
+ *     server that served it; the allowlist is about *other* origins.
+ *
+ *  3. A rejected origin returns the response without CORS headers rather than
+ *     throwing. The browser blocks it — which is the enforcement — instead of
+ *     the server turning it into a 500 that looks like a server fault.
+ */
+const corsForApi = cors((req, cb) => {
+  const origin = req.headers.origin;
+
+  // curl, same-origin navigations and server-to-server calls send no Origin.
+  if (!origin) return cb(null, { origin: true });
+
+  let sameOrigin = false;
+  try {
+    sameOrigin = new URL(origin).host === req.headers.host;
+  } catch {
+    // "null" (file://, sandboxed iframe) and other opaque origins land here.
+  }
+
+  if (sameOrigin || ALLOWED_ORIGINS.includes(origin)) {
+    return cb(null, { origin: true });
+  }
+
+  console.warn(`[bridge] refused origin ${origin} — add it to V4D3R_ORIGINS to allow it.`);
+  cb(null, { origin: false });
+});
 
 app.use(express.static(webRoot));
 
@@ -74,7 +107,7 @@ app.use(express.static(webRoot));
 
 let credentialInfo = { source: 'unresolved', detail: '' };
 
-app.get('/health', (_req, res) => {
+app.get('/health', corsForApi, (_req, res) => {
   res.json({
     ok: true,
     service: 'lord-v4d3r-bridge',
@@ -102,7 +135,12 @@ function tokenOk(header) {
   return timingSafeEqual(digest(presented), digest(ACCESS_TOKEN));
 }
 
-app.post('/api/chat', async (req, res) => {
+// A cross-origin POST carrying JSON and a bearer token is never a simple
+// request, so the preflight needs its own route: app.post() does not match
+// OPTIONS, and without this the browser blocks the call before it is sent.
+app.options('/api/chat', corsForApi);
+
+app.post('/api/chat', corsForApi, async (req, res) => {
   if (MODE !== 'bridge') {
     return res.status(501).json({
       error:

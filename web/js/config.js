@@ -71,7 +71,11 @@ export const BRIDGE_CANDIDATES = (() => {
   // file:// has origin "null", and a page served over https must not be sent
   // looking for an http bridge on its own host.
   if (/^https?:$/.test(window.location.protocol)) {
-    candidates.unshift(window.location.origin);
+    // The directory this page sits in, not the domain root: on a GitHub Pages
+    // *project* site the console lives at /REPO/, and probing the root would
+    // be knocking on a different repo's site. A bridge that serves this page
+    // serves it from its own base, so this is right in both deployments.
+    candidates.unshift(new URL('.', window.location.href).href.replace(/\/+$/, ''));
   }
   return [...new Set(candidates)];
 })();

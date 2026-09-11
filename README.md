@@ -47,13 +47,32 @@ Copy `.env.example` to `.env` to change the model, tool allowlist, port, or orig
 
 ---
 
-## Hosting the static console
+## Deploying to GitHub Pages
 
-**There is no longer a GitHub Pages workflow in this repo** — [Render](#docker-and-hosting-on-render-for-free) is the deployment path, and it serves the same static console for free while also being able to run the bridge.
+`.github/workflows/deploy-pages.yml` publishes `web/` verbatim on every push to `main`. There is no build step — the console is dependency-free ES modules — and it publishes `web/` specifically, not the repository root, so `server/`, the `Dockerfile` and `.env.example` stay off the public site.
 
-`web/` is still nothing but dependency-free ES modules, so any static host will serve it verbatim with no build step. If you want Pages back, `actions/upload-pages-artifact` with `path: web` is the whole job — note `path: '.'` would publish `server/` and your `.env.example` along with it.
+**Two things to do, once each:**
 
-Either way your visitors paste their own Anthropic credential, which is stored in *their* browser (`sessionStorage` by default, `localStorage` if they tick "remember"). A static deployment has no backend and never sees it.
+1. **Settings → Pages → Source: GitHub Actions.** Until you do this the workflow runs and fails at the deploy step, because there is no Pages site to deploy to.
+2. **Get your work onto `main`.** The workflow only triggers on `main` (plus manual runs from the Actions tab). A feature branch will not publish.
+
+Your site lands at `https://YOURNAME.github.io/YOURREPO/`. The console is built with relative paths throughout, so it works from that subdirectory with no configuration.
+
+### What you get on Pages, and what you don't
+
+Pages serves static files, so **only Holonet Direct works there** — visitors paste their own Anthropic credential, which is stored in *their* browser (`sessionStorage` by default, `localStorage` if they tick "remember"). The site has no backend and never sees it.
+
+The Agent SDK needs a process, which Pages does not have. So on Pages the bridge is only reachable if a visitor is running one on their own machine — the console probes for that automatically and falls back. If you want the Agent SDK *hosted*, that is what the [Render deployment](#docker-and-hosting-on-render-for-free) is for; the two can coexist, and a Pages visitor can point at a hosted bridge with:
+
+```js
+localStorage.setItem('v4d3r.bridgeUrl', 'https://your-service.onrender.com')
+localStorage.setItem('v4d3r.bridgeToken', '<the access token>')
+```
+
+That needs two edits first, and it fails quietly without them:
+
+- **`connect-src` in `web/index.html`** lists only Anthropic, `'self'` and loopback. Add your bridge's origin, or the browser blocks the request before it leaves the page. This is the CSP doing its job — the deliberate cost of not allowing `https:` wholesale.
+- **`V4D3R_ORIGINS` on the Render service** must include your Pages origin, or its CORS check refuses the request.
 
 ### A caveat worth setting expectations on
 

@@ -12,7 +12,7 @@ You asked for the Claude Agent SDK **and** a browser-only app on GitHub Pages. T
 
 | | Runtime | Auth | Tools | Where it runs |
 |---|---|---|---|---|
-| **Holonet Direct** | Anthropic Messages API via `@anthropic-ai/sdk` | user's own key/token, kept in their browser | none | the static page, no server |
+| **Holonet Direct** | Anthropic Messages API via `@anthropic-ai/sdk` | user's own key/token, kept in their browser | `http_request` (browser `fetch`) | the static page, no server |
 | **Imperial Bridge** | `@anthropic-ai/claude-agent-sdk` | OAuth / env / inherited `claude` login | Read, Glob, Grep, WebSearch, WebFetch | Node on your machine, or a container you host |
 
 **Why the Agent SDK can't go in the browser:** `@anthropic-ai/claude-agent-sdk` is Claude Code packaged as a library. It spawns subprocesses and needs a filesystem. Its `/browser` export is *not* a standalone browser agent — it's a thin client that attaches to an already-provisioned server-side Claude Code session (internal, feature-flagged surface). GitHub Pages serves static files only, so there is no process for it to be.
@@ -210,6 +210,33 @@ Defaults are Opus 5 at Shallow: conversational chat doesn't repay deeper reasoni
 Switching model mid-conversation is safe and needs no reset. Thinking blocks are bound to the model that produced them and are silently dropped if replayed elsewhere — but the transcript sent back to the API holds plain text only, so there is nothing to lose.
 
 **On the bridge the operator picks**, via `V4D3R_MODEL` / `V4D3R_EFFORT` (`server/src/config.js`). The selectors go read-only and display the bridge's model, read from `/health`. That asymmetry is deliberate: the bridge answers on *your* credential, so letting a visitor choose the model would be letting them choose how much of your balance to spend.
+
+## Live network access
+
+Holonet has one tool, `http_request`, defined in `web/js/tools.js`. The model asks for a URL; the **visitor's browser** fetches it with `fetch()` and hands back the body. HTML is reduced to text, responses are capped at 120K characters, requests time out at 15s, and a turn may make at most 8 calls. There is a **DATALINK** toggle in the header, on by default; turning it off drops both the tool and its briefing from the request, so the model does not claim an ability it no longer has. Every call is shown in the transcript with its URL and outcome.
+
+### CORS decides what actually works
+
+A browser `fetch()` only succeeds if the target sends `Access-Control-Allow-Origin`. Public JSON APIs usually do. Ordinary web pages usually do not. **This is the browser's rule and no amount of code here changes it** — the only way around it is a server doing the fetching, which is what the bridge is for.
+
+The tool therefore tells the model, in the failure string itself, that a failed fetch means the page is unreadable from a browser and that it must say so rather than invent the contents. That instruction is load-bearing: the alternative failure mode is a confident summary of a page nobody read.
+
+### What this costs you, stated plainly
+
+Turning this on required widening the CSP from `connect-src 'self' https://api.anthropic.com …` to include `https:`. That directive was the control that left an injected script with **nowhere to send a stolen API key**, and a wildcard removes it. There is no version of browser-side fetch that keeps it.
+
+What still stands:
+
+- **`script-src` is still `'self'`.** No third-party script can get onto the page to begin with; `connect-src` was defence in depth behind that, not the front line.
+- **`https:` only** — no plaintext exfiltration, and `http://` targets are refused by the CSP.
+- **The tool refuses `api.anthropic.com`**, so it cannot be turned into a way to replay the visitor's own credential.
+- **The tool refuses loopback and private address space** (`127.0.0.0/8`, `10/8`, `192.168/16`, `172.16/12`, `169.254/16`, `*.local`). This matters specifically because a visitor may be running an unauthenticated bridge on their own machine, and a fetched page must not be able to talk the model into driving it. It is a hostname check, so a DNS name resolving into private space still gets through — the browser's CORS rules and the bridge's origin allowlist are the real defence; this is the cheap first line.
+- **No credentials are ever attached.** `credentials: 'omit'`, and the only header the model can influence is `Content-Type` on a POST.
+- **Fetched content is never rendered as the assistant's own words.** Tool rows are built with `textContent`, and the body never reaches the markdown renderer.
+
+**Prompt injection is the honest residual risk.** Fetched pages are untrusted text entering the context of a model that can fetch again. The persona prompt tells it to treat fetched content as data and to report any instructions it finds rather than obey them, which is mitigation, not a guarantee. The blast radius is bounded by the fact that the model's only tool is an outbound request that never carries a credential.
+
+If you do not want any of this: set `connect-src` back to `https://api.anthropic.com` in `web/index.html`. The tool then fails closed — the browser blocks it, the model is told it failed, nothing else breaks.
 
 ## Security notes
 

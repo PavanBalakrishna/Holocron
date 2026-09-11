@@ -21,6 +21,8 @@ import {
 } from './config.js';
 import { SYSTEM_PROMPT } from './persona.js';
 import { CredentialStore, ensureFresh } from './auth.js';
+import { TOOLS, TOOL_BRIEF, MAX_TOOL_USES, runTool } from './tools.js';
+import { toolsEnabled } from './config.js';
 
 /**
  * The Anthropic SDK is vendored into this repo and served from our own origin
@@ -68,26 +70,107 @@ export const holonet = {
       },
     });
 
-    yield* runMessages(client, messages, signal);
+    yield* runTurn(client, messages, signal);
   },
 };
 
 /**
- * Issue the request, degrading gracefully if this account/endpoint does not
+ * One user turn, which may take several API round trips.
+ *
+ * The model answers, and if it asked for a tool we run it, hand back the
+ * result, and ask again — until it stops asking or hits MAX_TOOL_USES.
+ *
+ * `working` is local to this turn and deliberately thrown away afterwards.
+ * app.js keeps only the final text in `conversation`, which is what makes
+ * mid-conversation model switching safe: the tool_use/tool_result/thinking
+ * blocks below must be replayed verbatim within a turn, but thinking blocks
+ * are bound to the model that produced them, so persisting them across turns
+ * would break a switch. The cost is that the model does not remember having
+ * fetched something two turns ago — only what it said about it.
+ */
+async function* runTurn(client, messages, signal) {
+  const working = [...messages];
+
+  for (let used = 0; used <= MAX_TOOL_USES; used++) {
+    const final = yield* runMessages(client, working, signal);
+
+    // runMessages yields `done` itself on a terminal stop reason.
+    if (!final || final.stop_reason !== 'tool_use') return;
+
+    const calls = final.content.filter((b) => b.type === 'tool_use');
+    if (!calls.length) {
+      // stop_reason said tool_use but nothing addressed to us is in the
+      // content. Returning beats looping on an identical request forever.
+      yield { type: 'done' };
+      return;
+    }
+
+    if (used === MAX_TOOL_USES) {
+      yield {
+        type: 'notice',
+        text: `Datalink budget spent — ${MAX_TOOL_USES} requests in one turn is the ceiling.`,
+      };
+      yield { type: 'done' };
+      return;
+    }
+
+    // Echo the assistant turn back verbatim, thinking blocks included.
+    working.push({ role: 'assistant', content: final.content });
+
+    const results = [];
+    for (const call of calls) {
+      if (signal?.aborted) return;
+      yield { type: 'tool', phase: 'start', name: call.name, input: call.input };
+
+      const output = await runTool(call.name, call.input ?? {});
+      const failed = output.startsWith('ERROR:');
+
+      yield {
+        type: 'tool',
+        phase: failed ? 'error' : 'done',
+        name: call.name,
+        input: call.input,
+        // First line only: enough for the operator to see what happened
+        // without dumping a fetched page into the transcript.
+        summary: output.split('\n', 1)[0].slice(0, 160),
+      };
+
+      results.push({
+        type: 'tool_result',
+        tool_use_id: call.id,
+        content: output,
+        ...(failed ? { is_error: true } : {}),
+      });
+    }
+
+    // Every result for a parallel batch goes back in ONE user message.
+    // Splitting them teaches the model to stop calling tools in parallel.
+    working.push({ role: 'user', content: results });
+  }
+}
+
+/**
+ * Issue one request, degrading gracefully if this account/endpoint does not
  * yet accept the newer beta parameters.
  *
  * The model and thinking depth are resolved per call rather than captured
- * once, so a visitor switching either mid-conversation takes effect on their
- * next message. That is safe here only because `conversation` holds plain
- * text: thinking blocks are bound to the model that produced them, and a
- * history replaying them would quietly lose them on a switch.
+ * once, so a visitor switching either takes effect on their next message.
+ *
+ * Returns the final message (for runTurn to inspect) and yields `done` itself
+ * only on a terminal stop reason — a `tool_use` stop is the caller's to
+ * continue, so emitting `done` there would close the UI mid-turn.
+ *
+ * @returns {Promise<object|null>} the final message, or null if it degraded
+ *   and a recursive call already handled the turn.
  */
 async function* runMessages(client, messages, signal, allowBetas = true) {
   const shape = requestShape();
+  const useTools = toolsEnabled();
   const body = {
     ...shape.body,
-    system: SYSTEM_PROMPT,
+    system: useTools ? SYSTEM_PROMPT + TOOL_BRIEF : SYSTEM_PROMPT,
     messages,
+    ...(useTools ? { tools: TOOLS } : {}),
     ...(allowBetas && shape.betas.length ? { betas: shape.betas } : {}),
   };
   if (!allowBetas) delete body.fallbacks;
@@ -105,8 +188,7 @@ async function* runMessages(client, messages, signal, allowBetas = true) {
   } catch (err) {
     if (useBeta && isBetaRejection(err)) {
       yield { type: 'notice', text: 'Refusal-fallback beta unavailable; proceeding without it.' };
-      yield* runMessages(client, messages, signal, false);
-      return;
+      return yield* runMessages(client, messages, signal, false);
     }
     throw err;
   }
@@ -126,12 +208,14 @@ async function* runMessages(client, messages, signal, allowBetas = true) {
         text: 'The Dark Side clouds this request — it was declined by a safety classifier.',
       };
     }
-    yield { type: 'done' };
+    // Only a turn that is actually over gets `done`; runTurn continues a
+    // tool_use stop and will emit it once the loop finishes.
+    if (final.stop_reason !== 'tool_use') yield { type: 'done' };
+    return final;
   } catch (err) {
     if (useBeta && isBetaRejection(err)) {
       yield { type: 'notice', text: 'Refusal-fallback beta unavailable; proceeding without it.' };
-      yield* runMessages(client, messages, signal, false);
-      return;
+      return yield* runMessages(client, messages, signal, false);
     }
     throw decorate(err);
   }

@@ -201,6 +201,47 @@ header {
   letter-spacing: normal;
 }
 
+/* A tool call, shown in the transcript between the construct's own blocks.
+   Deliberately instrument-panel rather than speech: this is the console
+   reporting what it did, not LORD-V4D3R talking. */
+.toolcall {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--saber);
+  background: rgba(71, 201, 255, .05);
+  font-size: 11px;
+  color: var(--steel);
+}
+.toolcall .tag {
+  color: var(--saber);
+  font-size: 9.5px;
+  letter-spacing: .16em;
+  white-space: nowrap;
+}
+.toolcall .target {
+  color: var(--ice);
+  word-break: break-all;
+}
+.toolcall .note {
+  color: var(--steel-dim);
+  word-break: break-word;
+}
+.toolcall[data-phase="start"] {
+  opacity: .75;
+}
+.toolcall[data-phase="start"] .tag::after {
+  content: " \2026";
+}
+.toolcall[data-phase="error"] {
+  border-left-color: var(--sith);
+  background: rgba(255, 43, 43, .05);
+}
+.toolcall[data-phase="error"] .tag { color: var(--sith); }
+
 button.ghost {
   font-family: var(--mono);
   font-size: 10px;

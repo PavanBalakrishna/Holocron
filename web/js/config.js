@@ -73,6 +73,23 @@ export const LEVEL_LABELS = {
   max: 'Absolute',
 };
 
+/**
+ * Whether the model is offered the browser fetch tool.
+ *
+ * Default on — the capability is the point — but switchable, because every
+ * tool call is an outbound request from the visitor's browser and some people
+ * will not want that. Turning it off removes the tool from the request and the
+ * datalink briefing from the system prompt, so the model does not claim an
+ * ability it no longer has.
+ */
+export function toolsEnabled() {
+  return localStorage.getItem('v4d3r.tools') !== 'off';
+}
+
+export function setToolsEnabled(on) {
+  localStorage.setItem('v4d3r.tools', on ? 'on' : 'off');
+}
+
 /** Model id the visitor has chosen, falling back to the default. */
 export function currentModel() {
   const stored = localStorage.getItem('v4d3r.model');

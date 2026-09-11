@@ -19,6 +19,18 @@
   origin (the Docker/Render deployment) can be reached; the loopback entries
   are for a bridge running on the visitor's own machine.
 
+  It also carries `https:`, which is the cost of the http_request tool: the
+  model fetches URLs using this browser, and the browser cannot be told at
+  build time which hosts those will be. Be clear-eyed about what that gives
+  up — connect-src was the control that left an injected script with nowhere
+  to send a stolen credential, and a wildcard removes it. What still holds:
+  script-src stays 'self', so there is no way to get a script onto the page in
+  the first place; `https:` keeps plaintext exfiltration out; and the tool
+  itself refuses api.anthropic.com and private address space and never
+  attaches credentials (web/js/tools.js). If you do not want live fetch, set
+  connect-src back to `https://api.anthropic.com` and the tool fails closed —
+  the browser blocks it, the model is told, and nothing else breaks.
+
   If you configure OAuth, add your token endpoint to connect-src.
 -->
 <meta http-equiv="Content-Security-Policy" content="
@@ -26,7 +38,7 @@
   script-src 'self';
   style-src 'self';
   img-src 'self' data:;
-  connect-src 'self' https://api.anthropic.com http://127.0.0.1:* http://localhost:*;
+  connect-src 'self' https: http://127.0.0.1:* http://localhost:*;
   base-uri 'none';
   form-action 'self';
 " />
@@ -72,6 +84,10 @@
       -->
       <select class="pick" id="pick-model" aria-label="Model" disabled></select>
       <select class="pick" id="pick-level" aria-label="Meditation depth" disabled></select>
+      <select class="pick" id="pick-tools" aria-label="Live network access" disabled>
+        <option value="on">Datalink on</option>
+        <option value="off">Datalink off</option>
+      </select>
 
       <button class="ghost" id="btn-auth">Credentials</button>
       <button class="ghost" id="btn-purge">Purge</button>

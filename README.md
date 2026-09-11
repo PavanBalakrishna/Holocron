@@ -29,7 +29,7 @@ npm install
 # Full experience — Agent SDK, tools, sessions
 npm run bridge          # → http://127.0.0.1:8787
 
-# Or just the static console, exactly as GitHub Pages will serve it
+# Or just the static console, exactly as a static host will serve it
 npm run web             # → http://127.0.0.1:8080
 
 # Or the container, exactly as Render will run it
@@ -47,17 +47,13 @@ Copy `.env.example` to `.env` to change the model, tool allowlist, port, or orig
 
 ---
 
-## Deploying to GitHub Pages
+## Hosting the static console
 
-```bash
-git init && git add -A && git commit -m "LORD-V4D3R"
-git remote add origin git@github.com:YOURNAME/YOURREPO.git
-git push -u origin main
-```
+**There is no longer a GitHub Pages workflow in this repo** — [Render](#docker-and-hosting-on-render-for-free) is the deployment path, and it serves the same static console for free while also being able to run the bridge.
 
-Then **Settings → Pages → Source: GitHub Actions**. The included workflow publishes `web/` verbatim on every push to `main` — there is no build step, because the console is dependency-free ES modules.
+`web/` is still nothing but dependency-free ES modules, so any static host will serve it verbatim with no build step. If you want Pages back, `actions/upload-pages-artifact` with `path: web` is the whole job — note `path: '.'` would publish `server/` and your `.env.example` along with it.
 
-Your visitors then paste their own Anthropic credential, which is stored in *their* browser (`sessionStorage` by default, `localStorage` if they tick "remember"). The site has no backend and never sees it.
+Either way your visitors paste their own Anthropic credential, which is stored in *their* browser (`sessionStorage` by default, `localStorage` if they tick "remember"). A static deployment has no backend and never sees it.
 
 ### A caveat worth setting expectations on
 
@@ -116,7 +112,7 @@ Render's free tier runs Docker web services, which is all this needs.
 2. Render → **New → Blueprint** → pick the repo. It reads `render.yaml`: one
    free web service, health-checked on `/health`, auto-deploying on push.
 3. Open the `.onrender.com` URL. That's the console, in static mode — visitors
-   paste their own Anthropic credential, exactly as on GitHub Pages.
+   paste their own Anthropic credential, which never leaves their browser.
 
 To run the Agent SDK there instead, uncomment the bridge block in
 `render.yaml` (it has Render generate the access token for you) and add
@@ -158,7 +154,7 @@ So the OAuth path is wired and waiting. Fill in `V4D3R_OAUTH_*` in `.env` (or th
 ## Layout
 
 ```
-web/                      ← this is what GitHub Pages serves
+web/                      ← the static console; all a static host needs
   index.html
   css/styles.css
   js/persona.js           ← THE character. Imported by both runtimes.
@@ -190,7 +186,7 @@ The threat that matters on a public deployment: **the page holds each visitor's 
 - **CSP with `script-src 'self'`** and `default-src 'none'`. An injected script can't load code and has no origin to exfiltrate to except Anthropic. This is why the page carries no inline `style=` attributes — keeping `unsafe-inline` out of `style-src`. If you configure OAuth, add your token endpoint to `connect-src`.
 - **Model output is escaped before rendering**, quotes included. That last part is not optional: the link rule interpolates a URL into `href="..."`, and HTML5 parsers recover from `href="x"onmouseover=…` by starting a *new* attribute. Escaping only `<`/`>`/`&` leaves a working XSS.
 
-Bridge-specific (local users, not Pages visitors):
+Bridge-specific (local users, not static-console visitors):
 
 - The bridge binds `127.0.0.1` and, on loopback, has **no authentication** — anything running on your machine can drive it. Beyond loopback it will not start without `V4D3R_ACCESS_TOKEN`.
 - Its tool allowlist is read-only by design. `V4D3R_TOOLS=none` makes it pure chat.

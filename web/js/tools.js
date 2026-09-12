@@ -16,10 +16,8 @@
  * fetches attacker-chosen URLs is the one place an injected instruction could
  * try to launder it out. Hence the guards below: no credentials are ever
  * attached, the Anthropic API is not a reachable target, and private/loopback
- * address space is refused so a fetched page cannot talk the model into
- * driving a bridge running on the visitor's own machine.
- *
- * Bridge mode does not use any of this — it has the Agent SDK's own tools.
+ * address space is refused so a fetched page cannot turn the model into a
+ * probe of whatever the visitor happens to be running at home.
  */
 
 import { MODELS } from './config.js';
@@ -38,12 +36,12 @@ export const MAX_TOOL_USES = 8;
  *
  * `api.anthropic.com` is here because the page is authorised to talk to it and
  * holds a credential for it; the tool must not become a way to replay either.
- * The private ranges are here because the visitor may be running an
- * unauthenticated bridge on loopback, and text fetched from the web must not
- * be able to reach it. This is a hostname check, so a DNS name resolving into
- * private space still gets through — the browser's own CORS rules and the
- * bridge's origin allowlist are what actually stop that, and this check is the
- * cheap first line rather than the whole defence.
+ * The private ranges are here because a visitor's own network is not the web:
+ * a router admin page or an unauthenticated dev server is exactly what fetched
+ * text should not be able to reach through them. This is a hostname check, so a
+ * DNS name resolving into private space still gets through — the browser's own
+ * CORS rules are what actually stop that, and this is the cheap first line
+ * rather than the whole defence.
  */
 function hostRefused(host) {
   const h = host.toLowerCase();
@@ -242,7 +240,6 @@ export async function runTool(name, input) {
  * exactly which tools were sent. Telling the model about a tool it does not
  * have produces confident descriptions of searches that never happened.
  *
- * The bridge has the Agent SDK's own tools and is never given any of this.
  */
 export function toolBrief({ web, client }) {
   if (!web && !client) return '';

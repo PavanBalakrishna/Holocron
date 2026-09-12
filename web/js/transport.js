@@ -1,24 +1,17 @@
 /**
- * Two ways to reach Claude. Both expose the same async-generator contract:
+ * How the console reaches Claude.
  *
  *   for await (const ev of transport.stream(messages, { signal })) { ... }
- *   ev = { type: 'thinking'|'text'|'notice', text } | { type: 'done' }
+ *   ev = { type: 'thinking'|'text'|'notice'|'tool', ... } | { type: 'done' }
  *
- * HOLONET  — browser talks straight to api.anthropic.com with the user's own
- *            credential. No server, nothing for the host to see. Requires
- *            Anthropic to allow direct browser access for the credential.
- * BRIDGE   — browser talks to a Node process running the Claude Agent SDK,
- *            which brings tools, sessions and real OAuth. That process may be
- *            on the visitor's own machine, or it may be the very server that
- *            served this page (the container image does both jobs).
+ * HOLONET — the browser talks straight to api.anthropic.com with the visitor's
+ * own credential. No server anywhere, and nothing for whoever hosts the page to
+ * see. The one requirement is that Anthropic permits direct browser access for
+ * that credential; when it does not, the request fails CORS and `decorate()`
+ * below says so in those words rather than showing a generic error.
  */
 
-import {
-  requestShape,
-  ANTHROPIC_BASE_URL,
-  BRIDGE_CANDIDATES,
-  BRIDGE_TOKEN,
-} from './config.js';
+import { requestShape, ANTHROPIC_BASE_URL } from './config.js';
 import { SYSTEM_PROMPT, clockBlock } from './persona.js';
 import { CredentialStore, ensureFresh } from './auth.js';
 import {
@@ -325,143 +318,10 @@ function decorate(err) {
     return new Error(
       'The browser could not reach api.anthropic.com — this is almost certainly CORS. ' +
         'Direct browser access may not be permitted for this credential. ' +
-        'Switch to IMPERIAL BRIDGE mode (see README) and try again.',
+        'Try an API key rather than an OAuth token, or a key from a different account.',
     );
   }
   return err instanceof Error ? err : new Error(msg);
 }
 
-/* ---------------------------------------------------------------- bridge -- */
-
-export const bridge = {
-  id: 'bridge',
-  label: 'IMPERIAL BRIDGE',
-
-  /**
-   * The Agent SDK keeps conversation state server-side, so the bridge only
-   * needs the newest turn plus this resume token. Without it every message
-   * would start a fresh session and the construct would have no memory.
-   */
-  sessionId: undefined,
-
-  /** Which candidate answered, once one has. */
-  baseUrl: null,
-
-  /** Whether that bridge demands a token — set by available(). */
-  authRequired: false,
-
-  /**
-   * The model the bridge is configured with. The visitor cannot change this:
-   * the bridge answers on the operator's credential, and the model lives in
-   * its own config. The picker goes read-only and displays this instead.
-   */
-  model: null,
-
-  reset() {
-    this.sessionId = undefined;
-  },
-
-  /**
-   * Probe the candidates in order and keep the first that reports it can
-   * actually run a turn.
-   *
-   * `chat: false` matters as much as a failed request: a static deployment
-   * serves this same console and answers /health, but has no agent behind it,
-   * and treating that as a bridge would strand the visitor on a transport
-   * that returns 501 for every message. The container image in static mode is
-   * exactly that case.
-   */
-  async available() {
-    for (const base of BRIDGE_CANDIDATES) {
-      try {
-        const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2500) });
-        if (!res.ok) continue;
-        const info = await res.json();
-        // `chat` is absent on bridges predating the static/bridge split; those
-        // always had an agent, so treat undefined as yes.
-        if (info?.chat === false) continue;
-        this.baseUrl = base;
-        this.authRequired = Boolean(info?.authRequired);
-        this.model = info?.model ?? null;
-        return true;
-      } catch {
-        // Unreachable, wrong protocol, timed out — try the next candidate.
-      }
-    }
-    this.baseUrl = null;
-    return false;
-  },
-
-  async *stream(messages, { signal } = {}) {
-    const base = this.baseUrl ?? BRIDGE_CANDIDATES[0];
-    const res = await fetch(`${base}/api/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // A bridge reachable beyond loopback requires this; a local one
-        // ignores it. Sending it unconditionally keeps the two paths identical.
-        ...(BRIDGE_TOKEN ? { Authorization: `Bearer ${BRIDGE_TOKEN}` } : {}),
-      },
-      body: JSON.stringify({ messages, sessionId: this.sessionId }),
-      signal,
-    });
-    if (res.status === 401) {
-      throw new Error(
-        'The bridge rejected your access token. Set it with ' +
-          "localStorage.setItem('v4d3r.bridgeToken', '…') and reload.",
-      );
-    }
-    if (!res.ok || !res.body) {
-      throw new Error(`Bridge refused the transmission (${res.status}): ${await res.text()}`);
-    }
-
-    for await (const ev of readSse(res.body, signal)) {
-      if (ev.type === 'session') {
-        this.sessionId = ev.sessionId;
-        continue;
-      }
-      yield ev;
-    }
-  },
-};
-
-/** Minimal SSE reader — the bridge speaks `data: {json}\n\n`. */
-async function* readSse(body, signal) {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  try {
-    while (true) {
-      if (signal?.aborted) return;
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      let idx;
-      while ((idx = buffer.indexOf('\n\n')) !== -1) {
-        const frame = buffer.slice(0, idx).trim();
-        buffer = buffer.slice(idx + 2);
-        if (!frame.startsWith('data:')) continue;
-
-        const payload = frame.slice(5).trim();
-        if (payload === '[DONE]') {
-          yield { type: 'done' };
-          return;
-        }
-        let ev;
-        try {
-          ev = JSON.parse(payload);
-        } catch {
-          continue;
-        }
-        if (ev.type === 'error') throw new Error(ev.message);
-        yield ev;
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-export const TRANSPORTS = { holonet, bridge };
+export const TRANSPORTS = { holonet };

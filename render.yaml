@@ -1,67 +1,38 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  Render Blueprint — https://render.com/docs/blueprint-spec
 #
-#  Push this repo to GitHub, then Render → New → Blueprint → pick the repo.
-#  Everything below is free-tier: one Docker web service, no disk, no database.
+#  LORD-V4D3R is a static site: dependency-free ES modules in web/, with every
+#  request going from the visitor's own browser to Anthropic. There is no
+#  server, so this is a static site rather than a Docker web service.
 #
-#  Free-tier facts worth knowing before you point people at the URL:
-#    • the service sleeps after ~15 minutes with no traffic, and the next
-#      request pays a cold start of roughly a minute while the container boots
-#    • there is no persistent disk, so anything written inside the container
-#      (including a token from `npm run login`) is gone on the next deploy
-#    • free web services get 750 instance-hours a month across the account
+#  That is strictly better than the container this replaces:
+#    • no spin-down, so no cold start — a static site is always up
+#    • no instance hours consumed
+#    • served from Render's CDN
+#
+#  Push to GitHub, then Render → New → Blueprint → pick the repo.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
   - type: web
     name: lord-v4d3r
-    runtime: docker
-    plan: free
-    # Free instances are offered in Render's core regions; oregon is the
-    # default. Change it if your users are elsewhere.
-    region: oregon
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    # Render uses this to decide a deploy succeeded, and to detect a wedged
-    # instance. It does not keep a free service awake — only real traffic does.
-    healthCheckPath: /health
+    runtime: static
+    # Nothing to compile — the console is ES modules and a committed vendor
+    # bundle. `npm run vendor` is only needed after bumping the SDK.
+    buildCommand: ''
+    staticPublishPath: web
     autoDeployTrigger: commit
 
-    envVars:
-      # ── which half of the app this deployment is ──────────────────────────
-      #
-      # `static` serves the console and holds no Anthropic credential at all.
-      # Every visitor pastes their own key, which stays in their browser — the
-      # same trust model as the GitHub Pages deployment, and the only one that
-      # is safe to leave open to the internet.
-      #
-      # `bridge` runs the Claude Agent SDK on YOUR credential, so every visitor
-      # spends your Anthropic balance. If you switch to it you must also set
-      # V4D3R_ACCESS_TOKEN (below) or the server refuses to boot.
-      - key: V4D3R_MODE
-        value: static
-
-      - key: V4D3R_MODEL
-        value: claude-opus-5
-
-      # ── bridge mode only ─────────────────────────────────────────────────
-      #
-      # Uncomment BOTH of these to run the Agent SDK here. `generateValue` has
-      # Render mint a random secret you can read once from the dashboard; put
-      # it in each browser you want to allow with:
-      #
-      #   localStorage.setItem('v4d3r.bridgeToken', '<the value>')
-      #
-      # ANTHROPIC_API_KEY must be set in the dashboard, never in this file —
-      # `sync: false` means Render prompts for it and keeps it out of git.
-      #
-      # - key: V4D3R_ACCESS_TOKEN
-      #   generateValue: true
-      # - key: ANTHROPIC_API_KEY
-      #   sync: false
-      #
-      # Tools the bridge may use. Read/Glob/Grep see the container's own
-      # filesystem, which holds this source and your env — `none` is the
-      # honest setting for a deployment other people can talk to.
-      # - key: V4D3R_TOOLS
-      #   value: none
+    headers:
+      # The same policy the page carries in its own meta tag, applied at the
+      # edge as well. `https:` in connect-src is what the http_request tool
+      # costs; see the CSP note in web/index.html.
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'self'"
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff

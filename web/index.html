@@ -15,9 +15,9 @@
   included, is served from this origin. No CDN, no third party that could be
   compromised into reading visitors' API keys.
 
-  connect-src carries 'self' so that a bridge serving this page from its own
-  origin (the Docker/Render deployment) can be reached; the loopback entries
-  are for a bridge running on the visitor's own machine.
+  connect-src carries 'self' for the page's own assets. The loopback entries are
+  kept because a visitor may point http_request at a service on their own
+  machine during development.
 
   It also carries `https:`, which is the cost of the http_request tool: the
   model fetches URLs using this browser, and the browser cannot be told at
@@ -77,10 +77,8 @@
       </span>
 
       <!--
-        Holonet runs on the visitor's own credential, so the model and the
+        Every turn runs on the visitor's own credential, so the model and the
         depth of its reasoning are theirs to choose and theirs to pay for.
-        Both go read-only in bridge mode, where the operator's credential and
-        the operator's config decide instead.
       -->
       <select class="pick" id="pick-model" aria-label="Model" disabled></select>
       <select class="pick" id="pick-level" aria-label="Meditation depth" disabled></select>
@@ -157,18 +155,19 @@
       <div class="actions">
         <button type="submit" class="primary" id="auth-save">Establish link</button>
         <button type="button" id="auth-oauth" disabled>Sign in with OAuth</button>
-        <button type="button" id="auth-bridge">Use local bridge</button>
         <button type="button" id="auth-cancel">Cancel</button>
       </div>
     </form>
 
     <div class="notice" id="auth-note">
-      <b>Two ways in.</b>
-      <b>Holonet Direct</b> — paste a credential above; the page calls Anthropic straight from your
-      browser. If Anthropic blocks direct browser access for your credential you will see a CORS
-      error, which is expected, not a bug in this app.
-      <b>Imperial Bridge</b> — run <code>npm run bridge</code> from the repo for full OAuth plus the
-      Claude Agent SDK (tools, sessions, filesystem). Nothing is pasted anywhere.
+      <b>Holonet Direct.</b>
+      Paste a credential above and the page calls Anthropic straight from your browser. There is no
+      server in between and nothing is sent anywhere else — whoever hosts this page never sees your
+      key. If Anthropic does not permit direct browser access for your credential you will see a
+      CORS error; that is expected, not a bug in this app. An API key generally works where an
+      OAuth token may not.
+      <b>A word of advice:</b> use a dedicated key with a spend limit. An Anthropic key is
+      account-wide and carries your billing.
     </div>
   </div>
 </dialog>

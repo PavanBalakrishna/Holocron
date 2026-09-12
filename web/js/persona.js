@@ -1,9 +1,8 @@
 /**
  * LORD-V4D3R — the persona core.
  *
- * This module is the single source of truth for the character and is imported
- * by BOTH runtimes: the static browser client (web/) and the Node bridge
- * (server/, via a relative import). Change the voice here and both agree.
+ * The single source of truth for the character. Change the voice here and the
+ * whole console follows.
  */
 
 export const BOT_NAME = 'LORD-V4D3R';

@@ -560,14 +560,39 @@ export function listen({ onInterim, onSilence, onEnd, silenceMs = 2000 } = {}) {
     }, silenceMs);
   };
 
+  /** Collapse the runs of whitespace that joining separate results leaves. */
+  const tidy = (s) => s.replace(/\s+/g, ' ').trim();
+
+  /**
+   * Rebuild the transcript from the whole result list on every event, rather
+   * than appending the slice starting at `resultIndex`.
+   *
+   * `ev.results` is cumulative for the session and `resultIndex` is only a
+   * hint at what changed — and Chrome does not keep that hint past the
+   * results it has already finalised. When a phrase finalises it fires again
+   * with an index at or before that phrase, so appending the slice counted
+   * the same words a second time: one spoken "hello" arrived in the composer
+   * as "hellohello", and every further result repeated the growth. Rebuilding
+   * is idempotent, so a result delivered any number of times still reads once.
+   *
+   * The `done` guard matters as much. Chrome delivers results after `stop()`,
+   * and this session is finished the moment the silence timer submits; without
+   * the guard that late result refilled the composer the submit had just
+   * cleared, and the line went out again on the next turn.
+   */
   rec.onresult = (ev) => {
+    if (done) return;
+
+    let final = '';
     let interim = '';
-    for (let i = ev.resultIndex; i < ev.results.length; i += 1) {
+    for (let i = 0; i < ev.results.length; i += 1) {
       const r = ev.results[i];
-      if (r.isFinal) finalText += r[0].transcript;
-      else interim += r[0].transcript;
+      if (r.isFinal) final += ` ${r[0].transcript}`;
+      else interim += ` ${r[0].transcript}`;
     }
-    onInterim?.((finalText + interim).trim());
+
+    finalText = tidy(final);
+    onInterim?.(tidy(final + interim));
     arm();
   };
 

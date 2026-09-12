@@ -351,6 +351,21 @@ function insideFence(text, index) {
 
 let speaking = false;
 
+/**
+ * Utterances queued but not yet finished, and who to tell when that reaches
+ * zero. Hands-free conversation needs this: the microphone must not reopen
+ * while the character is still talking, or it transcribes his own voice back
+ * as the operator's next question.
+ */
+let pending = 0;
+let idleCb = null;
+let suppressIdle = false;
+
+/** Called once the speech queue drains of its own accord. */
+export function onSpeechIdle(cb) {
+  idleCb = cb;
+}
+
 /** Queue one utterance. Silently does nothing when there is no engine. */
 export function speak(text) {
   if (!SYNTH) return;
@@ -386,13 +401,30 @@ export function speak(text) {
   };
   u.onend = u.onerror = () => {
     speaking = SYNTH.speaking;
+    pending = Math.max(0, pending - 1);
+    if (pending > 0 || suppressIdle) return;
+    // A short settle before declaring idle: sentences are queued one at a time
+    // as the reply streams, so a gap between two of them is not the end.
+    setTimeout(() => {
+      if (pending === 0 && !SYNTH.speaking && !suppressIdle) idleCb?.();
+    }, 250);
   };
+
+  pending += 1;
   SYNTH.speak(u);
 }
 
 export function stopSpeaking() {
+  // Cancelling fires onend for everything queued. That is a deliberate stop,
+  // not the reply finishing, so the idle callback must not run — otherwise
+  // halting a turn would reopen the microphone.
+  suppressIdle = true;
   if (SYNTH) SYNTH.cancel();
+  pending = 0;
   speaking = false;
+  setTimeout(() => {
+    suppressIdle = false;
+  }, 100);
 }
 
 export function isSpeaking() {
@@ -451,18 +483,43 @@ export function createSpeechFeed() {
  * sent automatically costs the operator a real API call, so the text lands in
  * the composer for review instead.
  */
-export function listen({ onInterim, onEnd } = {}) {
+export function listen({ onInterim, onSilence, onEnd, silenceMs = 2000 } = {}) {
   if (!Recognition) {
     return { start() {}, stop() {}, supported: false };
   }
 
   const rec = new Recognition();
   rec.lang = navigator.language || 'en-US';
-  rec.continuous = false;
+  // Continuous, so the browser's own end-of-speech guess does not decide when
+  // the operator has finished. The silence timer below decides instead, which
+  // is what makes a fixed, predictable pause work.
+  rec.continuous = true;
   rec.interimResults = true;
   rec.maxAlternatives = 1;
 
   let finalText = '';
+  let timer = null;
+  let done = false;
+
+  const clear = () => {
+    clearTimeout(timer);
+    timer = null;
+  };
+
+  /**
+   * Restarted on every result, interim ones included. Interims keep arriving
+   * while someone is mid-sentence, so this can only elapse during real silence
+   * — a pause for breath inside a sentence still resets it.
+   */
+  const arm = () => {
+    clear();
+    timer = setTimeout(() => {
+      const text = finalText.trim();
+      if (!text || done) return;
+      done = true;
+      onSilence?.(text);
+    }, silenceMs);
+  };
 
   rec.onresult = (ev) => {
     let interim = '';
@@ -472,10 +529,24 @@ export function listen({ onInterim, onEnd } = {}) {
       else interim += r[0].transcript;
     }
     onInterim?.((finalText + interim).trim());
+    arm();
   };
 
-  rec.onerror = (ev) => onEnd?.({ error: ev.error, text: finalText.trim() });
-  rec.onend = () => onEnd?.({ text: finalText.trim() });
+  rec.onspeechstart = arm;
+
+  rec.onerror = (ev) => {
+    clear();
+    if (done) return;
+    done = true;
+    onEnd?.({ error: ev.error, text: finalText.trim() });
+  };
+
+  rec.onend = () => {
+    clear();
+    if (done) return;
+    done = true;
+    onEnd?.({ text: finalText.trim() });
+  };
 
   return {
     supported: true,
@@ -487,6 +558,7 @@ export function listen({ onInterim, onEnd } = {}) {
       }
     },
     stop() {
+      clear();
       try {
         rec.stop();
       } catch {

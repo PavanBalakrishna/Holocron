@@ -235,13 +235,29 @@ That button is the decisive check. **If both sound identical, the browser is ign
 
 Spoken per sentence as the reply streams, so the voice starts on the first complete clause instead of after the whole answer. Markdown is reduced before speaking — `**bold**` read aloud is "asterisk asterisk bold", and a URL is a minute of punctuation — and **fenced code blocks are skipped entirely**, because nobody wants forty lines of JavaScript recited. Halt, Purge, a new message, or switching the selector all cut the voice off immediately.
 
+### Conversation mode
+
+`Voice conversation` is hands-free. Tap the microphone once and:
+
+1. you speak, and the transcript appears in the composer as you go
+2. **two seconds of silence sends it** — no button
+3. the microphone closes for the whole turn
+4. the reply streams and is spoken
+5. the microphone reopens, and you carry on
+
+The microphone closing during the turn is not incidental. Speech synthesis and recognition running together means the page transcribes the character's own voice straight back as your next question, so the loop only reopens once the speech queue has drained — which is also why `speak()` counts outstanding utterances rather than guessing from a timer.
+
+Two seconds is measured from the last *result*, interim ones included, so a pause for breath mid-sentence does not send. Anything that ends the loop ends it properly: tapping the microphone, Halt, Purge, switching character, or changing the voice setting. If three reopenings hear nothing at all it gives up and says so, rather than leaving a live microphone open indefinitely.
+
+**Auto-send means a misheard sentence is transmitted without review, and billed to your credential.** That is the trade for hands-free, and the consent line says so before the first use.
+
 ### Listening
 
 **Dictation is the one part of this page that is not local.** Chrome implements `SpeechRecognition` by sending the recorded audio to Google for transcription. On a page whose whole claim is that your credential never leaves your browser, that deserves saying out loud, so the console prints a one-time warning the first time you enable it.
 
 Firefox has never implemented `SpeechRecognition`, so the microphone hides itself there rather than sitting dead. Speaking still works.
 
-Transcribed text lands in the composer **for you to review** — it is not transmitted automatically. A misheard sentence sent on its own would spend your credential on the wrong question.
+In `Voice speak` the transcript lands in the composer for you to review and send yourself. In `Voice conversation` it is sent automatically after the pause — see above.
 
 ## Security notes
 

@@ -125,13 +125,13 @@ render.yaml               ← Render static-site blueprint
 
 **On Holonet Direct the visitor picks.** Two selectors sit in the header — model, and how deeply it reasons. The visitor's own credential pays for the turn, so the choice and its cost belong to them. Both persist per browser (`v4d3r.model`, `v4d3r.level`).
 
-| Model | Depths offered | Default |
+| Model | Depths offered | Depth default |
 |---|---|---|
-| `claude-opus-5` | Shallow → Absolute (`low`…`max` effort) | Shallow |
+| `claude-haiku-4-5` **← default** | Shallow → Deep | Measured |
 | `claude-sonnet-5` | Shallow → Absolute | Shallow |
-| `claude-haiku-4-5` | Shallow → Deep | Measured |
+| `claude-opus-5` | Shallow → Absolute (`low`…`max` effort) | Shallow |
 
-Defaults are Opus 5 at Shallow: conversational chat doesn't repay deeper reasoning, and it keeps the visitor's bill down. The reasoning itself is rendered in a collapsible **MEDITATION** panel, which is why adaptive thinking is requested with `display: "summarized"` — the API default, `"omitted"`, streams empty thinking blocks and reads as a dead pause.
+**Haiku 4.5 is the default** because every turn is billed to whoever is visiting, and a Star Wars character holding a conversation is not work that repays a frontier model. Anyone who wants more is one dropdown away. The reasoning itself is rendered in a collapsible **MEDITATION** panel, which is why adaptive thinking is requested with `display: "summarized"` — the API default, `"omitted"`, streams empty thinking blocks and reads as a dead pause.
 
 **The request shape is not portable between models, which is why `MODELS` in `web/js/config.js` is a table rather than one shared params object.** Send Opus 5's parameters to Haiku 4.5 and you get a 400, not a worse answer: Haiku rejects `output_config.effort` outright, and has no adaptive thinking — reasoning there is the older fixed `budget_tokens` ceiling. So each row declares the depths it supports and how they translate, and `requestShape()` assembles the body. Adding a model is one row. Haiku also offers no Profound/Absolute, because those are effort levels and it has no effort parameter; a stored depth that a newly selected model can't accept is coerced at selection time, not at request time.
 
@@ -276,7 +276,7 @@ Residual risks worth telling your users about: they are trusting *you* not to sh
 
 Every message is billed to whoever's credential is in use. On the hosted page that is each visitor's own account, never yours — you are paying for static file hosting and nothing else.
 
-Two things cost more than plain tokens, and both are the visitor's choice in the header: **hosted `web_search` is billed per search** on top of tokens, and **reasoning depth** multiplies the tokens a turn spends. The defaults are the cheap end — Opus 5 at Shallow — and `Datalink off` removes the search cost entirely.
+Two things cost more than plain tokens, and both are the visitor's choice in the header: **hosted `web_search` is billed per search** on top of tokens, and **reasoning depth** multiplies the tokens a turn spends. The defaults are the cheap end — Haiku 4.5 at Measured — and `Datalink off` removes the search cost entirely.
 
 ---
 

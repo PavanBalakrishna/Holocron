@@ -8,7 +8,17 @@ import { CHARACTERS, DEFAULT_CHARACTER } from './characters.js';
  * secret is required.
  */
 
-export const DEFAULT_MODEL = 'claude-opus-5';
+/**
+ * Haiku 4.5 by default: every turn is billed to whoever is visiting, and a
+ * Star Wars character having a conversation is not work that repays a frontier
+ * model. Opus and Sonnet are one dropdown away for anyone who wants them.
+ *
+ * Note this default also changes the request shape — Haiku takes no `effort`
+ * parameter and no adaptive thinking, so `requestShape()` sends a thinking
+ * budget instead. That is the MODELS table's job, not something the default
+ * needs to know about.
+ */
+export const DEFAULT_MODEL = 'claude-haiku-4-5';
 
 /** Ceiling for one reply. Also bounds Haiku's thinking budget below. */
 export const MAX_TOKENS = 16000;

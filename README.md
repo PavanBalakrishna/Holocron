@@ -2,7 +2,7 @@
 
 > *"You have accessed a restricted terminal, Commander. State your query."*
 
-An Imperial chat console powered by Claude. Star Wars themed front end, Darth Vader persona, bring-your-own-credential — deployable to GitHub Pages so other people can use it with their own Anthropic account.
+An Imperial chat console powered by Claude. Star Wars themed front end, Darth Vader persona — **addressing you as his Master, the Emperor** — bring-your-own-credential, deployable to GitHub Pages so other people can use it with their own Anthropic account.
 
 ---
 
@@ -176,7 +176,7 @@ So the OAuth path is wired and waiting. Fill in `V4D3R_OAUTH_*` in `.env` (or th
 web/                      ← the static console; all a static host needs
   index.html
   css/styles.css
-  js/persona.js           ← THE character. Imported by both runtimes.
+  js/persona.js           ← THE character, and the clock. Imported by both runtimes.
   js/config.js            ← model params, OAuth endpoints, bridge URL
   js/auth.js              ← credential store + browser PKCE
   js/transport.js         ← holonet + bridge, one event contract
@@ -237,6 +237,16 @@ A browser `fetch()` only succeeds if the target sends `Access-Control-Allow-Orig
 Measured, for calibration: `api.github.com/rate_limit` sends `ACAO: *` and works; `api.github.com/zen` sends none and fails. Same host, different endpoint.
 
 The tool therefore tells the model, in the failure string itself, that a failed fetch means the page is unreadable from a browser and that it should reach for `web_fetch` instead — and must never invent the contents. That instruction is load-bearing: the alternative failure mode is a confident summary of a page nobody read.
+
+### The model is told the time
+
+`clockBlock()` in `web/js/persona.js` puts the operator's local date, time and time zone into every request, as a second system block after the persona.
+
+This is not a nicety — without it the model has **no clock at all**, and "what time is it" cannot be answered. Search does not rescue it either: pages that display a clock build it in JavaScript, so the text a search returns contains no time. The browser already knows the answer exactly, so it hands it over and the prompt tells the model never to search for it.
+
+It is a separate block on purpose. The persona is stable for a session and the clock changes every request, so when a `cache_control` breakpoint is eventually added to the persona block, the volatile half is already on the correct side of it. The bridge gets the same block appended to its own system prompt, so neither half of the app is blind to the date.
+
+A turn that spends tool calls and then returns no text now says so, rather than rendering an ellipsis that looks like a broken app.
 
 ### Model-gated tool versions
 

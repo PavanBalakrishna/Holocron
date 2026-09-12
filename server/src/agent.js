@@ -8,7 +8,7 @@
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
 
-import { SYSTEM_PROMPT } from '../../web/js/persona.js';
+import { SYSTEM_PROMPT, clockBlock } from '../../web/js/persona.js';
 import { MODEL, EFFORT, MAX_TURNS, ALLOWED_TOOLS } from './config.js';
 
 /**
@@ -31,8 +31,10 @@ export async function* runTurn(prompt, sessionId, signal) {
       maxTurns: MAX_TURNS,
       abortController,
       // A custom prompt, not the Claude Code preset — this is a character, not
-      // a coding assistant.
-      systemPrompt: { type: 'custom', prompt: SYSTEM_PROMPT },
+      // a coding assistant. The clock is appended for the same reason as in the
+      // browser client: without it the model cannot answer what day it is, and
+      // no amount of searching fixes that.
+      systemPrompt: { type: 'custom', prompt: `${SYSTEM_PROMPT}\n\n${clockBlock()}` },
       // Do not inherit the host machine's CLAUDE.md / settings; the persona
       // must be identical to the browser client's.
       settingSources: [],

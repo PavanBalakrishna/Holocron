@@ -19,7 +19,7 @@ import {
   BRIDGE_CANDIDATES,
   BRIDGE_TOKEN,
 } from './config.js';
-import { SYSTEM_PROMPT } from './persona.js';
+import { SYSTEM_PROMPT, clockBlock } from './persona.js';
 import { CredentialStore, ensureFresh } from './auth.js';
 import {
   CLIENT_TOOLS,
@@ -194,7 +194,16 @@ async function* runMessages(client, messages, signal, allowBetas = true) {
 
   const body = {
     ...shape.body,
-    system: SYSTEM_PROMPT + toolBrief({ web: web.length > 0, client: client_.length > 0 }),
+    // Two blocks, not one string: the persona and tool briefing are stable for
+    // the session, the clock is not. Keeping them separate means a future
+    // cache_control breakpoint can sit between them.
+    system: [
+      {
+        type: 'text',
+        text: SYSTEM_PROMPT + toolBrief({ web: web.length > 0, client: client_.length > 0 }),
+      },
+      { type: 'text', text: clockBlock() },
+    ],
     messages,
     ...(tools.length ? { tools } : {}),
     ...(allowBetas && shape.betas.length ? { betas: shape.betas } : {}),

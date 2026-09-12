@@ -89,65 +89,130 @@ function noise() {
 }
 
 /**
+ * Vowel formants, in Hz. F1/F2 are what the ear reads as a vowel; F3 adds the
+ * vocal-tract body that separates a voice from a filtered buzz.
+ *
+ * This is the part that was missing. A Wookiee moan is not a low rumble — it
+ * is a mouth opening and closing while a pitch glides underneath it, and that
+ * "rrraaa-ooowww" shape is a formant sweep. A single lowpass cannot make it,
+ * no matter how the fundamental is tuned.
+ */
+const VOWELS = {
+  er: [490, 1350, 1690],
+  aa: [730, 1090, 2440],
+  ah: [640, 1190, 2390],
+  oh: [450, 800, 2600],
+  oo: [300, 870, 2240],
+  uh: [500, 1000, 2400],
+};
+
+/** The shapes a Wookiee actually makes, as vowel journeys. */
+const SHAPES = [
+  ['er', 'aa', 'oo'],   // rrraaaooow — the signature
+  ['oo', 'ah', 'oh'],   // a rising moan
+  ['uh', 'er', 'ah'],   // a grumble
+  ['aa', 'oh', 'oo'],   // a falling cry
+  ['oh', 'aa'],         // a short bark
+];
+
+/**
  * Schedule one growl.
  *
  * @param {number} at    when to start, in context time
  * @param {number} dur   length in seconds
  * @param {number} f0    fundamental in Hz
- * @param {number} heat  0..1 — how angry. Raises pitch travel and rasp.
+ * @param {number} heat  0..1 — how angry. Widens the pitch travel and the rasp.
+ * @param {string[]} shape  vowels to sweep through
  */
-function growl(at, dur, f0, heat, out) {
+function growl(at, dur, f0, heat, shape, out) {
   const end = at + dur;
 
-  // The pitch arc. A flat growl sounds like a machine; the rise and fall is
-  // most of what reads as a voice.
+  // A voiced source needs harmonics for formants to have anything to shape.
   const osc = ctx.createOscillator();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(f0 * 0.78, at);
-  osc.frequency.linearRampToValueAtTime(f0 * (1.05 + heat * 0.25), at + dur * 0.32);
-  osc.frequency.linearRampToValueAtTime(f0 * 0.68, end);
 
-  const sub = ctx.createOscillator();
-  sub.type = 'triangle';
-  sub.frequency.setValueAtTime(f0 * 0.5, at);
-  sub.frequency.linearRampToValueAtTime(f0 * 0.38, end);
+  // Wide pitch travel. A Wookiee cry rises hard into the middle and falls away;
+  // a flat pitch is what made the previous version sound like machinery.
+  osc.frequency.setValueAtTime(f0 * 0.72, at);
+  osc.frequency.exponentialRampToValueAtTime(f0 * (1.5 + heat * 0.5), at + dur * 0.35);
+  osc.frequency.exponentialRampToValueAtTime(f0 * 0.55, end);
 
-  const rasp = noise();
-  const raspBand = ctx.createBiquadFilter();
-  raspBand.type = 'bandpass';
-  raspBand.frequency.setValueAtTime(520 + heat * 900, at);
-  raspBand.frequency.linearRampToValueAtTime(380, end);
-  raspBand.Q.value = 1.4;
+  // Jitter: a few Hz of wander. Real animals are not in tune with themselves,
+  // and this is most of what separates "creature" from "synthesiser".
+  const jitter = ctx.createOscillator();
+  jitter.type = 'sine';
+  jitter.frequency.value = 5.5 + Math.random() * 4;
+  const jitterDepth = ctx.createGain();
+  jitterDepth.gain.value = f0 * 0.05;
+  jitter.connect(jitterDepth).connect(osc.frequency);
 
-  const raspGain = ctx.createGain();
-  raspGain.gain.value = 0.18 + heat * 0.3;
-  rasp.connect(raspBand).connect(raspGain);
+  // Breath through the same vocal tract as the voice.
+  const breath = noise();
+  const breathGain = ctx.createGain();
+  breathGain.gain.value = 0.1 + heat * 0.16;
+  breath.connect(breathGain);
 
-  // The growl itself: amplitude wobble somewhere around vocal-fold roughness.
+  // Three formants in parallel, swept through the vowel journey. This is the
+  // mouth moving.
+  const bank = ctx.createGain();
+  osc.connect(bank);
+  breathGain.connect(bank);
+
+  const sum = ctx.createGain();
+  sum.gain.value = 1;
+
+  const FORMANT_GAIN = [2.2, 1.25, 0.45];
+  for (let i = 0; i < 3; i += 1) {
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 4.2 - i * 1.1;
+
+    const step = dur / Math.max(1, shape.length - 1 || 1);
+    bp.frequency.setValueAtTime(VOWELS[shape[0]][i], at);
+    shape.forEach((v, k) => {
+      if (k === 0) return;
+      bp.frequency.exponentialRampToValueAtTime(VOWELS[v][i], at + step * k);
+    });
+
+    const g = ctx.createGain();
+    g.gain.value = FORMANT_GAIN[i];
+    bank.connect(bp).connect(g).connect(sum);
+    active.push(bp, g);
+  }
+
+  // A little unfiltered source keeps the chest in, since bandpasses alone
+  // sound thin and nasal.
+  const body = ctx.createGain();
+  body.gain.value = 0.34;
+  const chest = ctx.createBiquadFilter();
+  chest.type = 'lowpass';
+  chest.frequency.value = 320;
+  bank.connect(chest).connect(body).connect(sum);
+
+  // The growl proper: amplitude roughness at vocal-fold rate.
   const tremolo = ctx.createOscillator();
   tremolo.type = 'sine';
-  tremolo.frequency.value = 24 + heat * 22;
+  tremolo.frequency.setValueAtTime(26 + heat * 16, at);
+  tremolo.frequency.linearRampToValueAtTime(18 + heat * 12, end);
   const tremoloDepth = ctx.createGain();
-  tremoloDepth.gain.value = 0.3 + heat * 0.2;
+  tremoloDepth.gain.value = 0.22 + heat * 0.18;
   tremolo.connect(tremoloDepth);
 
   const env = ctx.createGain();
   env.gain.setValueAtTime(0.0001, at);
-  env.gain.exponentialRampToValueAtTime(0.85, at + Math.min(0.09, dur * 0.25));
-  env.gain.setValueAtTime(0.85, end - dur * 0.35);
+  env.gain.exponentialRampToValueAtTime(0.8, at + Math.min(0.12, dur * 0.22));
+  env.gain.setValueAtTime(0.8, end - dur * 0.4);
   env.gain.exponentialRampToValueAtTime(0.0001, end);
   tremoloDepth.connect(env.gain);
 
-  osc.connect(env);
-  sub.connect(env);
-  raspGain.connect(env);
-  env.connect(out);
+  sum.connect(env).connect(out);
 
-  for (const node of [osc, sub, rasp, tremolo]) {
+  for (const node of [osc, jitter, breath, tremolo]) {
     node.start(at);
     node.stop(end + 0.02);
     active.push(node);
   }
+  active.push(bank, sum, body, chest, env, jitterDepth, breathGain, tremoloDepth);
 }
 
 /**
@@ -181,11 +246,11 @@ export function roar(text, { onDone } = {}) {
   // One throat for the whole line, so the growls share a body.
   const throat = ctx.createBiquadFilter();
   throat.type = 'lowpass';
-  throat.frequency.value = 1400 + heat * 900;
+  throat.frequency.value = 2600 + heat * 1200;
   throat.Q.value = 0.7;
 
   const master = ctx.createGain();
-  master.gain.value = 0.32;
+  master.gain.value = 0.95;
 
   // Three sources sum into each growl's envelope, and overlapping tails push
   // the total past full scale — measured at 1.36 before this, which clips
@@ -205,10 +270,13 @@ export function roar(text, { onDone } = {}) {
   const start = Math.max(ctx.currentTime + 0.04, queueEndsAt + 0.16);
   let t = start;
   for (const token of tokens) {
-    const dur = Math.min(1.5, 0.22 + token.length * 0.075 + rand() * 0.15);
-    const f0 = 82 + rand() * 46 + (heat * 22);
-    growl(t, dur, f0, heat, throat);
-    t += dur + 0.05 + rand() * 0.09;
+    const dur = Math.min(1.7, 0.3 + token.length * 0.085 + rand() * 0.2);
+    // Higher than a rumble. Chewbacca moans and keens; he does not idle like a
+    // diesel, which is where the first attempt at this sat.
+    const f0 = 125 + rand() * 70 + heat * 40;
+    const shape = SHAPES[Math.floor(rand() * SHAPES.length)];
+    growl(t, dur, f0, heat, shape, throat);
+    t += dur + 0.04 + rand() * 0.08;
   }
   queueEndsAt = t;
 

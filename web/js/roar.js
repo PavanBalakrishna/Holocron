@@ -20,6 +20,8 @@
  *   • a lowpass over everything, because a Wookiee is not bright
  */
 
+import { hasSamples, playSample } from './samples.js';
+
 const AudioCtx = typeof window !== 'undefined' ? (window.AudioContext ?? window.webkitAudioContext) : null;
 
 export const canRoar = Boolean(AudioCtx);
@@ -283,6 +285,41 @@ export function roar(text, { onDone } = {}) {
   }
   ctx ??= new AudioCtx();
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+  // A recording, if the operator supplied one. Synchronous by design: the synth
+  // must schedule against the current time without waiting on a fetch, and on
+  // every default install there is no manifest and this is false.
+  if (hasSamples('chewbacca')) playRecorded(text, onDone);
+  else synthesise(text, onDone);
+}
+
+/** Play a supplied clip, falling back to synthesis if it cannot be used. */
+async function playRecorded(text, onDone) {
+  const out = ctx.createGain();
+  out.gain.value = 0.9;
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -6;
+  out.connect(limiter).connect(ctx.destination);
+  active.push(out, limiter);
+
+  const seconds = await playSample(ctx, 'chewbacca', text, out);
+  if (seconds == null) {
+    synthesise(text, onDone);
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    endTimers.delete(timer);
+    if (endTimers.size === 0) {
+      active = [];
+      queueEndsAt = 0;
+    }
+    onDone?.();
+  }, seconds * 1000 + 60);
+  endTimers.add(timer);
+}
+
+function synthesise(text, onDone) {
 
   const tokens = String(text).split(/[\s.,!?—-]+/).filter(Boolean).slice(0, 12);
   if (!tokens.length) {

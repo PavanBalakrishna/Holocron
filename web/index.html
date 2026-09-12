@@ -31,6 +31,10 @@
   connect-src back to `https://api.anthropic.com` and the tool fails closed —
   the browser blocks it, the model is told, and nothing else breaks.
 
+  media-src is 'self' and nothing more: audio may be played from this origin
+  only, which is what the optional recordings in web/audio/ need and is as far
+  as that permission goes.
+
   If you configure OAuth, add your token endpoint to connect-src.
 -->
 <meta http-equiv="Content-Security-Policy" content="
@@ -39,6 +43,7 @@
   style-src 'self';
   img-src 'self' data:;
   connect-src 'self' https: http://127.0.0.1:* http://localhost:*;
+  media-src 'self';
   base-uri 'none';
   form-action 'self';
 " />

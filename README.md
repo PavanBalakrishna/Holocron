@@ -202,7 +202,9 @@ Because the voice list is machine-specific, the right settings are too, so they 
 
 Choices persist per browser (`v4d3r.voiceName`, `v4d3r.voicePitch`, `v4d3r.voiceRate`). A stored voice that is missing on the current machine stays visible in the list as "not installed here" rather than silently reverting, and speech falls back to the automatic pick so it never goes mute. If the system reports no voices at all — a bare Linux box — the panel says so, and says what is usually missing.
 
-`Automatic` keeps the built-in preference list in `web/js/voice.js`, which is only a default; an explicit choice always wins.
+`Automatic` uses the name-matching in `web/js/voice.js`, which is only a default; an explicit choice always wins.
+
+**On gender: the Web Speech API does not expose it.** A voice has a name, a language and a `default` flag — no gender field, no hint. So matching a masculine voice for a character who has one can only be guessed from names, which is what `MASCULINE` and `FEMININE` in `voice.js` are for. The first list ranks known male voices across macOS, Windows, Chrome, Android and espeak; the second exists only so the fallback steps *over* names like Samantha and Zira instead of taking the first English voice, which is how a Vader console ended up sounding like a woman. Neither list filters the picker — every voice your system has stays selectable, and likely-masculine ones are simply sorted to the top, since you cannot tell gender from a name you have never heard either.
 
 ### Speaking
 

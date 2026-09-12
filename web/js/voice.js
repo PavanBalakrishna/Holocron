@@ -34,24 +34,65 @@ export const canListen = Boolean(Recognition);
 /* ----------------------------------------------------------------- voice -- */
 
 /**
- * Fallback order when the operator has not chosen a voice: the ones an OS is
- * most likely to make sound imposing, best first. Matched as substrings because
- * vendors decorate the names ("Microsoft David Desktop"). A miss is not a
- * failure — we fall through to any English voice, then to the browser default,
- * which still gets pitch and rate applied.
+ * The Web Speech API does not expose a voice's gender. There is no flag, no
+ * hint, nothing — only a name, a language and a `default` boolean. So matching
+ * a masculine voice for a character who has one can only ever be a guess made
+ * from names, which is why these lists exist and why the picker still shows
+ * everything.
  *
- * This list only decides the default. An explicit choice always wins.
+ * MASCULINE: known male English voices across macOS, Windows, Chrome, Android
+ * and espeak, best first. Substrings, because vendors decorate names
+ * ("Microsoft David Desktop - English (United States)").
  */
-const PREFERRED = [
+const MASCULINE = [
   'Google UK English Male',
   'Microsoft David',
+  'Microsoft Mark',
   'Microsoft Guy',
+  'Microsoft Ryan',
+  'Microsoft George',
+  'Microsoft Christopher',
+  'Microsoft Eric',
+  'Microsoft Roger',
+  'Microsoft Liam',
+  'Microsoft William',
+  'Microsoft Thomas',
   'Daniel',
   'Alex',
-  'Rishi',
   'Oliver',
+  'Rishi',
+  'Aaron',
+  'Gordon',
+  'Reed',
+  'Lee',
+  'Tom',
   'Fred',
+  'Rocko',
+  'Arthur',
+  'male',
 ];
+
+/**
+ * FEMININE: names to step over when falling back, so "the first English voice"
+ * does not hand a Vader console Samantha or Zira — which is exactly what it did
+ * before this list existed. Only used to DEPRIORITISE; every voice stays
+ * selectable in the picker.
+ */
+const FEMININE = [
+  'Samantha', 'Victoria', 'Karen', 'Moira', 'Tessa', 'Fiona', 'Allison', 'Ava',
+  'Susan', 'Vicki', 'Kathy', 'Nicky', 'Joana', 'Serena', 'Catherine',
+  'Microsoft Zira', 'Microsoft Hazel', 'Microsoft Eva', 'Microsoft Aria',
+  'Microsoft Jenny', 'Microsoft Michelle', 'Microsoft Sonia', 'Microsoft Natasha',
+  'Microsoft Clara', 'Microsoft Libby', 'Microsoft Maisie', 'Microsoft Ana',
+  'Google UK English Female', 'Google US English',
+  'female',
+];
+
+const isFeminine = (v) => FEMININE.some((n) => v.name.toLowerCase().includes(n.toLowerCase()));
+const masculineRank = (v) => {
+  const i = MASCULINE.findIndex((n) => v.name.toLowerCase().includes(n.toLowerCase()));
+  return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+};
 
 let chosen = null;
 let voicesReady = false;
@@ -72,13 +113,23 @@ function pickVoice() {
     if (exact) return exact;
   }
 
-  for (const want of PREFERRED) {
-    const hit = all.find((v) => v.name.includes(want));
-    if (hit) return hit;
-  }
-  // Anything English beats a voice speaking English text in another language's
-  // phonology.
-  return all.find((v) => /^en/i.test(v.lang)) ?? all[0] ?? null;
+  const english = all.filter((v) => /^en/i.test(v.lang));
+
+  // A named masculine voice, in preference order.
+  const ranked = english
+    .filter((v) => masculineRank(v) !== Number.MAX_SAFE_INTEGER)
+    .sort((a, b) => masculineRank(a) - masculineRank(b));
+  if (ranked.length) return ranked[0];
+
+  // Otherwise any English voice NOT on the feminine list. This step is the
+  // whole point: the previous version took english[0], which on macOS is
+  // Samantha and on Windows is Zira.
+  const neutral = english.find((v) => !isFeminine(v));
+  if (neutral) return neutral;
+
+  // Out of options. An English voice of any kind still beats a voice applying
+  // another language's phonology to English text.
+  return english[0] ?? all[0] ?? null;
 }
 
 /**
@@ -93,6 +144,13 @@ export function listVoices() {
   const all = SYNTH.getVoices();
   const english = all.filter((v) => /^en/i.test(v.lang));
   const rest = all.filter((v) => !/^en/i.test(v.lang));
+
+  // Likely-masculine English voices first, then the other English ones, then
+  // everything else. The operator cannot tell gender from a name they have
+  // never heard either, so ordering the list is the only help available.
+  const score = (v) => (masculineRank(v) !== Number.MAX_SAFE_INTEGER ? 0 : isFeminine(v) ? 2 : 1);
+  english.sort((a, b) => score(a) - score(b) || masculineRank(a) - masculineRank(b));
+
   return [...english, ...rest];
 }
 

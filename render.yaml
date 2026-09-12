@@ -15,7 +15,7 @@
 
 services:
   - type: web
-    name: lord-v4d3r
+    name: holocron
     runtime: static
     # Nothing to compile — the console is ES modules and a committed vendor
     # bundle. `npm run vendor` is only needed after bumping the SDK.

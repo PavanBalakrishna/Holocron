@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>LORD-V4D3R — Imperial Datalink</title>
-<meta name="description" content="An Imperial cognition construct powered by Claude. Bring your own Anthropic credential; it never leaves your browser." />
+<title>HOLOCRON — a Star Wars console powered by Claude</title>
+<meta name="description" content="A holocron: speak with Vader, Yoda, Obi-Wan, Luke or Chewbacca, powered by Claude. Bring your own Anthropic credential; it never leaves your browser." />
 <meta name="color-scheme" content="dark" />
 <!--
   Defence in depth. Even if something slips past the escaper in app.js, an
@@ -53,19 +53,48 @@
 <div class="shell">
 
   <header>
-    <svg class="sigil" viewBox="0 0 100 100" aria-hidden="true">
-      <path fill="#ff2b2b"
-            d="M50 4 14 24v32c0 23 15 35 36 40 21-5 36-17 36-40V24z"/>
+    <svg class="sigil" data-emblem="vader" viewBox="0 0 100 100" aria-hidden="true">
+      <path fill="currentColor" d="M50 4 14 24v32c0 23 15 35 36 40 21-5 36-17 36-40V24z"/>
       <path fill="#05060a" d="M50 17 26 30v25c0 16 10 25 24 30 14-5 24-14 24-30V30z"/>
-      <path fill="#ff2b2b" d="M50 26 34 35v19c0 11 7 17 16 21 9-4 16-10 16-21V35z" opacity=".45"/>
-      <circle cx="42" cy="45" r="3.4" fill="#ff2b2b"/>
-      <circle cx="58" cy="45" r="3.4" fill="#ff2b2b"/>
-      <path d="M43 60 Q50 66 57 60" stroke="#ff2b2b" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      <path fill="currentColor" d="M50 26 34 35v19c0 11 7 17 16 21 9-4 16-10 16-21V35z" opacity=".45"/>
+      <circle cx="42" cy="45" r="3.4" fill="currentColor"/>
+      <circle cx="58" cy="45" r="3.4" fill="currentColor"/>
+      <path d="M43 60 Q50 66 57 60" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    </svg>
+
+    <svg class="sigil" data-emblem="yoda" viewBox="0 0 100 100" aria-hidden="true" hidden>
+      <path fill="currentColor" d="M50 22c14 0 24 11 24 26 0 16-11 28-24 28S26 64 26 48c0-15 10-26 24-26z" opacity=".5"/>
+      <path fill="currentColor" d="M26 38 6 28c-1 12 6 21 18 24zM74 38l20-10c1 12-6 21-18 24z"/>
+      <circle cx="41" cy="46" r="4" fill="#05060a"/>
+      <circle cx="59" cy="46" r="4" fill="#05060a"/>
+      <path d="M42 62q8 6 16 0" stroke="#05060a" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    </svg>
+
+    <svg class="sigil" data-emblem="obiwan" viewBox="0 0 100 100" aria-hidden="true" hidden>
+      <path fill="currentColor" d="M50 8c4 12 4 20 0 30-4-10-4-18 0-30z"/>
+      <path fill="currentColor" d="M50 40c-7 0-13 6-13 13s6 13 13 13 13-6 13-13-6-13-13-13zm0 6a7 7 0 1 1 0 14 7 7 0 0 1 0-14z"/>
+      <path fill="currentColor" d="M30 30c-6 7-9 15-9 23 0 16 13 29 29 29s29-13 29-29c0-8-3-16-9-23l-5 5c5 5 7 11 7 18 0 12-10 22-22 22s-22-10-22-22c0-7 2-13 7-18z"/>
+    </svg>
+
+    <svg class="sigil" data-emblem="luke" viewBox="0 0 100 100" aria-hidden="true" hidden>
+      <path fill="currentColor" d="M50 6c6 14 8 26 8 38 0 20-4 36-8 50-4-14-8-30-8-50 0-12 2-24 8-38z"/>
+      <path fill="currentColor" d="M24 34c-3 14-2 27 3 39 3-13 3-25 0-37zM76 34c3 14 2 27-3 39-3-13-3-25 0-37z"/>
+      <path fill="currentColor" d="M35 78c5 6 10 10 15 12 5-2 10-6 15-12-5 3-10 5-15 5s-10-2-15-5z" opacity=".6"/>
+    </svg>
+
+    <svg class="sigil" data-emblem="chewbacca" viewBox="0 0 100 100" aria-hidden="true" hidden>
+      <path fill="currentColor" d="M50 12c17 0 28 13 28 32 0 24-13 44-28 44S22 68 22 44c0-19 11-32 28-32z" opacity=".55"/>
+      <circle cx="41" cy="40" r="4" fill="#05060a"/>
+      <circle cx="59" cy="40" r="4" fill="#05060a"/>
+      <ellipse cx="50" cy="55" rx="8" ry="6" fill="#05060a"/>
+      <path d="M38 68q12 10 24 0" stroke="#05060a" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M20 58 74 92" stroke="currentColor" stroke-width="9" opacity=".9"/>
+      <path d="M20 58 74 92" stroke="#05060a" stroke-width="3" stroke-dasharray="4 7"/>
     </svg>
 
     <div class="ident">
-      <h1>LORD-V4D3R</h1>
-      <p>Imperial Cognition Construct &middot; Mk IV</p>
+      <h1 id="ident-name">LORD VADER</h1>
+      <p id="ident-title">Sith Holocron &middot; Executor</p>
     </div>
 
     <div class="status-cluster">
@@ -80,6 +109,10 @@
         Every turn runs on the visitor's own credential, so the model and the
         depth of its reasoning are theirs to choose and theirs to pay for.
       -->
+      <!-- Who is speaking. Changes the prompt, the palette, the emblem and
+           the voice together: a holocron manifests one personality at a time. -->
+      <select class="pick" id="pick-character" aria-label="Character"></select>
+
       <select class="pick" id="pick-model" aria-label="Model" disabled></select>
       <select class="pick" id="pick-level" aria-label="Meditation depth" disabled></select>
       <select class="pick" id="pick-tools" aria-label="Live network access" disabled>
@@ -162,7 +195,7 @@
     </form>
 
     <div class="notice" id="auth-note">
-      <b>Holonet Direct.</b>
+      <b>Direct to Anthropic.</b>
       Paste a credential above and the page calls Anthropic straight from your browser. There is no
       server in between and nothing is sent anywhere else — whoever hosts this page never sees your
       key. If Anthropic does not permit direct browser access for your credential you will see a

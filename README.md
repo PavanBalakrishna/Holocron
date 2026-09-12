@@ -1,8 +1,20 @@
-# LORD-V4D3R
+# HOLOCRON
 
-> *"My Master. The Executor stands ready. What is thy bidding?"*
+> *"Come to learn, you have. Good. Begin, we shall."*
 
-An Imperial chat console powered by Claude. Star Wars themed front end, Darth Vader persona — **addressing you as his Master, the Emperor** — bring-your-own-credential, deployable as a static site so other people can use it with their own Anthropic account.
+A holocron is the Star Wars device that stores a master's knowledge and manifests their personality to answer you. This one is powered by Claude, runs entirely in your browser, and holds five of them.
+
+| Character | You are their | Register |
+|---|---|---|
+| **Lord Vader** | Emperor — he serves *you* | cold, absolute, obedient |
+| **Master Yoda** | student | teaches as well as answers |
+| **Obi-Wan Kenobi** | Padawan | warm, exacting, dryly amused |
+| **Luke Skywalker** | fellow pilot | plain, earnest, no ceremony |
+| **Chewbacca** | cub | Shyriiwook, with the answer in the translation |
+
+Pick one from the header and the console follows: system prompt, how you are addressed, palette, emblem, greeting, and the pitch and rate of the voice. Switching clears the conversation — a holocron holds one personality at a time, and replaying one character's words as another's would be a lie to the model as much as to you.
+
+**Chewbacca is a gag that still has to work.** He answers only in growls, with a bracketed translation underneath — and the translation carries the entire answer, code blocks and all. A funny growl over a thin answer is a failed reply, and his prompt says so.
 
 ---
 
@@ -91,7 +103,8 @@ So the OAuth path is wired and waiting. Fill in the `OAUTH` block in `web/js/con
 web/                      ← the whole application
   index.html
   css/styles.css
-  js/persona.js           ← THE character, and the clock
+  js/characters.js        ← THE five characters: prompts, labels, palettes, voices
+  js/persona.js           ← the operator's clock, shared by all of them
   js/config.js            ← models, depths, network + voice settings
   js/auth.js              ← credential store + browser PKCE
   js/tools.js             ← hosted search/fetch defs + the browser fetch tool

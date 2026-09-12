@@ -1,9 +1,9 @@
 {
-  "name": "lord-v4d3r",
+  "name": "holocron",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "LORD-V4D3R - an Imperial chat console powered by Claude. A static, browser-only client: bring your own Anthropic credential and it never leaves your browser.",
+  "description": "HOLOCRON - a Star Wars console powered by Claude. Speak with Vader, Yoda, Obi-Wan, Luke or Chewbacca; a static, browser-only client where your Anthropic credential never leaves your browser.",
   "engines": {
     "node": ">=20"
   },

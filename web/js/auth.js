@@ -11,8 +11,12 @@
 
 import { OAUTH } from './config.js';
 
-const KEY = 'v4d3r.credential';
-const PKCE_KEY = 'v4d3r.pkce';
+const KEY = 'holocron.credential';
+const PKCE_KEY = 'holocron.pkce';
+
+// The project was renamed; a credential saved under the old key is still the
+// user's credential, and silently logging them out over a rename would be rude.
+const LEGACY_KEY = 'v4d3r.credential';
 
 /* ------------------------------------------------------------------ store -- */
 
@@ -20,7 +24,7 @@ export const CredentialStore = {
   /** @returns {{kind:'api_key'|'oauth', value?:string, access_token?:string, refresh_token?:string, expires_at?:number}|null} */
   load() {
     for (const store of [sessionStorage, localStorage]) {
-      const raw = store.getItem(KEY);
+      const raw = store.getItem(KEY) ?? store.getItem(LEGACY_KEY);
       if (raw) {
         try {
           return JSON.parse(raw);
@@ -40,8 +44,10 @@ export const CredentialStore = {
   },
 
   clear() {
-    sessionStorage.removeItem(KEY);
-    localStorage.removeItem(KEY);
+    for (const k of [KEY, LEGACY_KEY]) {
+      sessionStorage.removeItem(k);
+      localStorage.removeItem(k);
+    }
     sessionStorage.removeItem(PKCE_KEY);
   },
 
@@ -183,7 +189,7 @@ export async function ensureFresh(cred) {
     expires_at: Date.now() + (tok.expires_in ?? 3600) * 1000,
   };
   CredentialStore.save(next, {
-    remember: Boolean(localStorage.getItem(KEY)),
+    remember: Boolean(localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY)),
   });
   return next;
 }

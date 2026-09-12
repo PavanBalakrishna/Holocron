@@ -1,3 +1,5 @@
+import { CHARACTERS, DEFAULT_CHARACTER } from './characters.js';
+
 /**
  * Deployment configuration for the static client.
  *
@@ -101,14 +103,14 @@ export const LEVEL_LABELS = {
  * the model never claims an ability it does not have.
  */
 export function networkMode() {
-  const stored = localStorage.getItem('v4d3r.network');
+  const stored = store.get('network');
   if (stored === 'off' || stored === 'search' || stored === 'full') return stored;
   // Honour the older boolean key so an existing visitor's choice survives.
-  return localStorage.getItem('v4d3r.tools') === 'off' ? 'off' : 'full';
+  return store.get('tools') === 'off' ? 'off' : 'full';
 }
 
 export function setNetworkMode(mode) {
-  localStorage.setItem('v4d3r.network', mode);
+  store.set('network', mode);
 }
 
 /**
@@ -120,12 +122,46 @@ export function setNetworkMode(mode) {
  * of this page is.
  */
 export function voiceMode() {
-  const v = localStorage.getItem('v4d3r.voice');
+  const v = store.get('voice');
   return v === 'speak' || v === 'both' ? v : 'off';
 }
 
 export function setVoiceMode(mode) {
-  localStorage.setItem('v4d3r.voice', mode);
+  store.set('voice', mode);
+}
+
+/**
+ * Stored settings, namespaced to the project.
+ *
+ * Reads fall back to the old `v4d3r.*` keys so the rename does not silently
+ * reset the settings of anyone who used the console before it. Writes only
+ * ever use the new prefix, so the old keys fade out on first change.
+ */
+const store = {
+  get(key) {
+    return localStorage.getItem(`holocron.${key}`) ?? localStorage.getItem(`v4d3r.${key}`);
+  },
+  set(key, value) {
+    localStorage.setItem(`holocron.${key}`, String(value));
+  },
+  remove(key) {
+    localStorage.removeItem(`holocron.${key}`);
+    localStorage.removeItem(`v4d3r.${key}`);
+  },
+};
+
+/**
+ * Which character is speaking.
+ *
+ * Stored, so a visitor who came for Yoda gets Yoda on their next visit.
+ */
+export function currentCharacter() {
+  const stored = store.get('character');
+  return stored && CHARACTERS[stored] ? stored : DEFAULT_CHARACTER;
+}
+
+export function setCharacter(id) {
+  if (CHARACTERS[id]) store.set('character', id);
 }
 
 /**
@@ -139,9 +175,11 @@ export function setVoiceMode(mode) {
  * an older build or a hand-edited localStorage must not be able to produce an
  * utterance the speech engine rejects.
  */
-export function voiceSettings() {
+export function voiceSettings(id = currentCharacter()) {
+  const spec = CHARACTERS[id] ?? CHARACTERS[DEFAULT_CHARACTER];
+
   const num = (key, fallback, lo, hi) => {
-    const raw = localStorage.getItem(key);
+    const raw = store.get(key);
     // An absent key must be tested before conversion: Number(null) is 0, which
     // is perfectly finite, so a isFinite() check alone silently turns "unset"
     // into "zero" — and a zero pitch is not the default, it is a monotone.
@@ -150,32 +188,44 @@ export function voiceSettings() {
     if (!Number.isFinite(n)) return fallback;
     return Math.min(hi, Math.max(lo, n));
   };
+
   return {
-    name: localStorage.getItem('v4d3r.voiceName') ?? '',
+    // The voice NAME is global: it is a property of the machine, and there is
+    // rarely more than one good one installed. Pitch and rate are per
+    // character, because they are what makes the same voice read as a Sith
+    // Lord or as a Wookiee — tuning Vader must not leave Yoda in a monotone.
+    name: store.get('voiceName') ?? '',
     // The spec allows pitch 0–2 and rate 0.1–10; the useful range is narrower.
-    pitch: num('v4d3r.voicePitch', 0.1, 0, 2),
-    rate: num('v4d3r.voiceRate', 0.85, 0.5, 2),
+    pitch: num(`voicePitch.${id}`, spec.voice.pitch, 0, 2),
+    rate: num(`voiceRate.${id}`, spec.voice.rate, 0.5, 2),
   };
 }
 
-export function setVoiceSettings({ name, pitch, rate }) {
-  if (name !== undefined) localStorage.setItem('v4d3r.voiceName', name);
-  if (pitch !== undefined) localStorage.setItem('v4d3r.voicePitch', String(pitch));
-  if (rate !== undefined) localStorage.setItem('v4d3r.voiceRate', String(rate));
+export function setVoiceSettings({ name, pitch, rate }, id = currentCharacter()) {
+  if (name !== undefined) store.set('voiceName', name);
+  if (pitch !== undefined) store.set(`voicePitch.${id}`, pitch);
+  if (rate !== undefined) store.set(`voiceRate.${id}`, rate);
+}
+
+/** Drop this character's tuning so it falls back to the character default. */
+export function clearVoiceTuning(id = currentCharacter()) {
+  store.remove('voiceName');
+  store.remove(`voicePitch.${id}`);
+  store.remove(`voiceRate.${id}`);
 }
 
 /** Whether the operator has been told where dictation audio goes. */
 export function micConsented() {
-  return localStorage.getItem('v4d3r.micConsent') === 'yes';
+  return store.get('micConsent') === 'yes';
 }
 
 export function setMicConsented() {
-  localStorage.setItem('v4d3r.micConsent', 'yes');
+  store.set('micConsent', 'yes');
 }
 
 /** Model id the visitor has chosen, falling back to the default. */
 export function currentModel() {
-  const stored = localStorage.getItem('v4d3r.model');
+  const stored = store.get('model');
   return stored && MODELS[stored] ? stored : DEFAULT_MODEL;
 }
 
@@ -185,16 +235,16 @@ export function currentModel() {
  */
 export function currentLevel(model = currentModel()) {
   const spec = MODELS[model];
-  const stored = localStorage.getItem('v4d3r.level');
+  const stored = store.get('level');
   return stored && spec.levels.includes(stored) ? stored : spec.defaultLevel;
 }
 
 export function setModel(model) {
-  if (MODELS[model]) localStorage.setItem('v4d3r.model', model);
+  if (MODELS[model]) store.set('model', model);
 }
 
 export function setLevel(level) {
-  localStorage.setItem('v4d3r.level', level);
+  store.set('level', level);
 }
 
 /**

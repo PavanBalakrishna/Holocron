@@ -14,6 +14,13 @@
   --sith:        #ff2b2b;
   --sith-deep:   #8f0f14;
   --sith-glow:   rgba(255, 43, 43, 0.55);
+  /* Tints derived from the accent. Separate variables because CSS cannot build
+     an rgba() from a hex custom property without color-mix, which is not
+     universally safe yet. --haze is the header wash, --sink the bottom of the
+     Transmit gradient, --wash a faint fill for active states. */
+  --accent-haze: rgba(143, 15, 20, .16);
+  --accent-sink: #5c0a0e;
+  --accent-wash: rgba(255, 43, 43, .08);
   --amber:       #ffb648;
   --saber:       #47c9ff;
   --ok:          #48e08b;
@@ -33,6 +40,53 @@ html, body {
   font-size: 14px;
   overflow: hidden;
 }
+
+/* ---- character palettes ----------------------------------------------
+   One attribute on <html> repaints the console. Kept in CSS rather than set
+   from script so the page needs no inline styles and `style-src 'self'` can
+   stay as it is — the whole point of not shipping a style attribute anywhere.
+   The variable names are historical (--sith); what they mean now is "the
+   accent of whoever is speaking".                                         */
+
+:root[data-character="yoda"] {
+  --sith:      #8fd94a;
+  --sith-deep: #3f7a1c;
+  --sith-glow: rgba(143, 217, 74, .5);
+  --accent-haze: rgba(63, 122, 28, .16);
+  --accent-sink: #274d10;
+  --accent-wash: rgba(143, 217, 74, .08);
+}
+:root[data-character="obiwan"] {
+  --sith:      #58a6ff;
+  --sith-deep: #1c4a80;
+  --sith-glow: rgba(88, 166, 255, .5);
+  --accent-haze: rgba(28, 74, 128, .16);
+  --accent-sink: #12304f;
+  --accent-wash: rgba(88, 166, 255, .08);
+}
+:root[data-character="luke"] {
+  --sith:      #ff9a3c;
+  --sith-deep: #8a4a12;
+  --sith-glow: rgba(255, 154, 60, .5);
+  --accent-haze: rgba(138, 74, 18, .16);
+  --accent-sink: #59300b;
+  --accent-wash: rgba(255, 154, 60, .08);
+}
+:root[data-character="chewbacca"] {
+  --sith:      #c98b52;
+  --sith-deep: #6b4526;
+  --sith-glow: rgba(201, 139, 82, .5);
+  --accent-haze: rgba(107, 69, 38, .16);
+  --accent-sink: #422b17;
+  --accent-wash: rgba(201, 139, 82, .08);
+}
+
+/* The emblem inherits the accent, so each character's mark is their colour. */
+.sigil { color: var(--sith); }
+/* The emblems all ship in the markup and the inactive ones carry `hidden`.
+   The rule below is not optional: .sigil sets an explicit display, which beats
+   the user-agent's [hidden] rule, and without it all five render side by side. */
+.sigil[hidden] { display: none; }
 
 /* ---- starfield + scanlines ------------------------------------------- */
 
@@ -88,7 +142,7 @@ header {
   border-bottom: 1px solid var(--grid);
   padding: 14px 18px 12px;
   background:
-    linear-gradient(180deg, rgba(143,15,20,.16), transparent),
+    linear-gradient(180deg, var(--accent-haze), transparent),
     var(--hull);
   display: flex;
   align-items: center;
@@ -271,7 +325,7 @@ header {
 .mic[data-live="true"] {
   color: var(--sith);
   border-color: var(--sith-deep);
-  background: rgba(255, 43, 43, .08);
+  background: var(--accent-wash);
   animation: micpulse 1.4s ease-in-out infinite;
 }
 @keyframes micpulse {
@@ -333,7 +387,7 @@ button.ghost:hover {
 }
 
 .msg.user .who    { color: var(--saber); }
-.msg.vader .who   { color: var(--sith); }
+.msg.holo .who   { color: var(--sith); }
 .msg.system .who  { color: var(--amber); }
 
 .bubble {
@@ -349,7 +403,7 @@ button.ghost:hover {
 .bubble li { margin: 4px 0; }
 
 .msg.user   .bubble { border-left-color: var(--saber); }
-.msg.vader  .bubble { border-left-color: var(--sith); color: #f2e9e9; }
+.msg.holo  .bubble { border-left-color: var(--sith); color: #f2e9e9; }
 .msg.system .bubble { border-left-color: var(--amber); color: var(--amber); font-size: 12.5px; }
 
 .bubble code {
@@ -476,7 +530,7 @@ footer {
   text-transform: uppercase;
   padding: 13px 22px;
   color: var(--ice);
-  background: linear-gradient(180deg, var(--sith-deep), #5c0a0e);
+  background: linear-gradient(180deg, var(--sith-deep), var(--accent-sink));
   border: 1px solid var(--sith);
   cursor: pointer;
   white-space: nowrap;
@@ -643,7 +697,7 @@ dialog .body { padding: 18px 20px 20px; }
 }
 .actions button:hover { color: var(--ice); border-color: var(--steel-dim); }
 .actions button.primary {
-  background: linear-gradient(180deg, var(--sith-deep), #5c0a0e);
+  background: linear-gradient(180deg, var(--sith-deep), var(--accent-sink));
   border-color: var(--sith);
   color: var(--ice);
 }

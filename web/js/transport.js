@@ -11,8 +11,9 @@
  * below says so in those words rather than showing a generic error.
  */
 
-import { requestShape, ANTHROPIC_BASE_URL } from './config.js';
-import { SYSTEM_PROMPT, clockBlock } from './persona.js';
+import { requestShape, ANTHROPIC_BASE_URL, currentCharacter } from './config.js';
+import { clockBlock } from './persona.js';
+import { characterPrompt } from './characters.js';
 import { CredentialStore, ensureFresh } from './auth.js';
 import {
   CLIENT_TOOLS,
@@ -193,7 +194,11 @@ async function* runMessages(client, messages, signal, allowBetas = true) {
     system: [
       {
         type: 'text',
-        text: SYSTEM_PROMPT + toolBrief({ web: web.length > 0, client: client_.length > 0 }),
+        // Resolved per request, so switching character takes effect on the
+        // next message rather than needing a reload.
+        text:
+          characterPrompt(currentCharacter()) +
+          toolBrief({ web: web.length > 0, client: client_.length > 0 }),
       },
       { type: 'text', text: clockBlock() },
     ],

@@ -50,5 +50,5 @@ createServer(async (req, res) => {
     res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
   }
 }).listen(PORT, '127.0.0.1', () => {
-  console.log(`\n  LORD-V4D3R — http://127.0.0.1:${PORT}\n`);
+  console.log(`\n  HOLOCRON — http://127.0.0.1:${PORT}\n`);
 });

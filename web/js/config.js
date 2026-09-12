@@ -27,6 +27,12 @@ export const MAX_TOKENS = 16000;
  * here and nothing else.
  *
  * `levels` is ordered cheapest → most thorough and drives the picker directly.
+ *
+ * `web` names the Anthropic-hosted search/fetch tool versions this model
+ * accepts. These are versioned types, not capabilities you can assume: the
+ * 20260209 pair (with dynamic filtering) needs Opus 4.6+ or Sonnet 4.6+, and
+ * older models take the earlier basic variants. Naming a version a model does
+ * not support is a request error, so this belongs in the table too.
  */
 export const MODELS = {
   'claude-opus-5': {
@@ -35,6 +41,7 @@ export const MODELS = {
     thinking: 'adaptive',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],
     defaultLevel: 'low',
+    web: { search: 'web_search_20260209', fetch: 'web_fetch_20260209' },
     // Server-side refusal fallback: if a safety classifier declines, the API
     // reroutes to a suitable model instead of handing back a dead turn.
     // Documented for the Opus 5 / Fable tier, so it is not claimed elsewhere.
@@ -47,6 +54,7 @@ export const MODELS = {
     thinking: 'adaptive',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],
     defaultLevel: 'low',
+    web: { search: 'web_search_20260209', fetch: 'web_fetch_20260209' },
     refusalFallback: false,
   },
 
@@ -60,6 +68,8 @@ export const MODELS = {
     defaultLevel: 'medium',
     // Must stay under MAX_TOKENS, and the API floor is 1024.
     budgets: { low: 1024, medium: 4096, high: 8192 },
+    // Predates dynamic filtering; the basic variants are what it takes.
+    web: { search: 'web_search_20250305', fetch: 'web_fetch_20250910' },
     refusalFallback: false,
   },
 };
@@ -74,20 +84,31 @@ export const LEVEL_LABELS = {
 };
 
 /**
- * Whether the model is offered the browser fetch tool.
+ * How much of the network the model may reach. Three settings, because the two
+ * kinds of access differ in a way worth choosing between:
  *
- * Default on — the capability is the point — but switchable, because every
- * tool call is an outbound request from the visitor's browser and some people
- * will not want that. Turning it off removes the tool from the request and the
- * datalink briefing from the system prompt, so the model does not claim an
- * ability it no longer has.
+ *   full   — hosted search and fetch, plus http_request from this browser
+ *   search — hosted search and fetch only
+ *   off    — no network tools at all
+ *
+ * Hosted tools run on Anthropic's servers: CORS does not apply, so they can
+ * read pages a browser cannot, and each search is billed on top of tokens.
+ * `http_request` runs here, which is free but CORS-bound and exposes the
+ * visitor's own IP address to whatever is fetched. "search" is the setting for
+ * someone who wants the web without handing their address to it.
+ *
+ * Whatever is off is removed from both the tools array and the briefing, so
+ * the model never claims an ability it does not have.
  */
-export function toolsEnabled() {
-  return localStorage.getItem('v4d3r.tools') !== 'off';
+export function networkMode() {
+  const stored = localStorage.getItem('v4d3r.network');
+  if (stored === 'off' || stored === 'search' || stored === 'full') return stored;
+  // Honour the older boolean key so an existing visitor's choice survives.
+  return localStorage.getItem('v4d3r.tools') === 'off' ? 'off' : 'full';
 }
 
-export function setToolsEnabled(on) {
-  localStorage.setItem('v4d3r.tools', on ? 'on' : 'off');
+export function setNetworkMode(mode) {
+  localStorage.setItem('v4d3r.network', mode);
 }
 
 /** Model id the visitor has chosen, falling back to the default. */

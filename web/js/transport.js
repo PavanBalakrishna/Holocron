@@ -21,8 +21,15 @@ import {
 } from './config.js';
 import { SYSTEM_PROMPT } from './persona.js';
 import { CredentialStore, ensureFresh } from './auth.js';
-import { TOOLS, TOOL_BRIEF, MAX_TOOL_USES, runTool } from './tools.js';
-import { toolsEnabled } from './config.js';
+import {
+  CLIENT_TOOLS,
+  CLIENT_TOOL_NAMES,
+  MAX_TOOL_USES,
+  runTool,
+  serverTools,
+  toolBrief,
+} from './tools.js';
+import { currentModel, networkMode } from './config.js';
 
 /**
  * The Anthropic SDK is vendored into this repo and served from our own origin
@@ -95,9 +102,24 @@ async function* runTurn(client, messages, signal) {
     const final = yield* runMessages(client, working, signal);
 
     // runMessages yields `done` itself on a terminal stop reason.
-    if (!final || final.stop_reason !== 'tool_use') return;
+    if (!final) return;
 
-    const calls = final.content.filter((b) => b.type === 'tool_use');
+    // A long server-tool run can pause the turn. Nothing is owed in reply —
+    // the assistant content goes back as-is and the model picks up where it
+    // left off. Without this the turn ends mid-search.
+    if (final.stop_reason === 'pause_turn') {
+      working.push({ role: 'assistant', content: final.content });
+      continue;
+    }
+
+    if (final.stop_reason !== 'tool_use') return;
+
+    // Only client tools need executing. A `web_search` that ran server-side is
+    // already resolved in the content above, and answering it with a
+    // tool_result would be a protocol error.
+    const calls = final.content.filter(
+      (b) => b.type === 'tool_use' && CLIENT_TOOL_NAMES.has(b.name),
+    );
     if (!calls.length) {
       // stop_reason said tool_use but nothing addressed to us is in the
       // content. Returning beats looping on an identical request forever.
@@ -165,12 +187,16 @@ async function* runTurn(client, messages, signal) {
  */
 async function* runMessages(client, messages, signal, allowBetas = true) {
   const shape = requestShape();
-  const useTools = toolsEnabled();
+  const mode = networkMode();
+  const web = mode !== 'off' ? serverTools(currentModel()) : [];
+  const client_ = mode === 'full' ? CLIENT_TOOLS : [];
+  const tools = [...web, ...client_];
+
   const body = {
     ...shape.body,
-    system: useTools ? SYSTEM_PROMPT + TOOL_BRIEF : SYSTEM_PROMPT,
+    system: SYSTEM_PROMPT + toolBrief({ web: web.length > 0, client: client_.length > 0 }),
     messages,
-    ...(useTools ? { tools: TOOLS } : {}),
+    ...(tools.length ? { tools } : {}),
     ...(allowBetas && shape.betas.length ? { betas: shape.betas } : {}),
   };
   if (!allowBetas) delete body.fallbacks;
@@ -193,12 +219,60 @@ async function* runMessages(client, messages, signal, allowBetas = true) {
     throw err;
   }
 
+  // Server tools resolve inside the response, so the only way to show them as
+  // they happen is to follow the block stream. Their arguments arrive as
+  // input_json_delta like any other tool call, so accumulate per index and
+  // report once the block closes.
+  const serverCalls = new Map();
+
   try {
     for await (const event of stream) {
+      if (event.type === 'content_block_start') {
+        const cb = event.content_block;
+        if (cb?.type === 'server_tool_use') {
+          serverCalls.set(event.index, { name: cb.name, json: '' });
+        } else if (cb?.type === 'web_search_tool_result') {
+          // Success content is a list of results; an error is a single object.
+          // Indexing without checking would read `.length` off the error.
+          const c = cb.content;
+          yield Array.isArray(c)
+            ? { type: 'tool', phase: 'done', name: 'web_search', server: true,
+                summary: `${c.length} result${c.length === 1 ? '' : 's'}` }
+            : { type: 'tool', phase: 'error', name: 'web_search', server: true,
+                summary: c?.error_code ?? 'search failed' };
+        } else if (cb?.type === 'web_fetch_tool_result') {
+          const c = cb.content;
+          yield c?.error_code
+            ? { type: 'tool', phase: 'error', name: 'web_fetch', server: true,
+                summary: c.error_code }
+            : { type: 'tool', phase: 'done', name: 'web_fetch', server: true,
+                summary: c?.url ?? 'retrieved' };
+        }
+        continue;
+      }
+
+      if (event.type === 'content_block_stop') {
+        const call = serverCalls.get(event.index);
+        if (call) {
+          serverCalls.delete(event.index);
+          let input = {};
+          try {
+            input = call.json ? JSON.parse(call.json) : {};
+          } catch {
+            // Partial JSON on an interrupted block: report the call anyway.
+          }
+          yield { type: 'tool', phase: 'start', name: call.name, server: true, input };
+        }
+        continue;
+      }
+
       if (event.type !== 'content_block_delta') continue;
       const d = event.delta;
       if (d.type === 'thinking_delta') yield { type: 'thinking', text: d.thinking };
       else if (d.type === 'text_delta') yield { type: 'text', text: d.text };
+      else if (d.type === 'input_json_delta' && serverCalls.has(event.index)) {
+        serverCalls.get(event.index).json += d.partial_json ?? '';
+      }
     }
 
     const final = await stream.finalMessage();
@@ -208,9 +282,11 @@ async function* runMessages(client, messages, signal, allowBetas = true) {
         text: 'The Dark Side clouds this request — it was declined by a safety classifier.',
       };
     }
-    // Only a turn that is actually over gets `done`; runTurn continues a
-    // tool_use stop and will emit it once the loop finishes.
-    if (final.stop_reason !== 'tool_use') yield { type: 'done' };
+    // Only a turn that is actually over gets `done`; runTurn continues both a
+    // tool_use stop and a pause_turn, and emits it once the loop finishes.
+    if (final.stop_reason !== 'tool_use' && final.stop_reason !== 'pause_turn') {
+      yield { type: 'done' };
+    }
     return final;
   } catch (err) {
     if (useBeta && isBetaRejection(err)) {

@@ -236,6 +236,14 @@ header {
 .toolcall[data-phase="start"] .tag::after {
   content: " \2026";
 }
+/* Hosted tools run on Anthropic's servers rather than in this browser. Amber
+   rather than saber, so the two are not mistaken for one another. */
+.toolcall[data-server="true"] {
+  border-left-color: var(--amber);
+  background: rgba(255, 182, 72, .05);
+}
+.toolcall[data-server="true"] .tag { color: var(--amber); }
+
 .toolcall[data-phase="error"] {
   border-left-color: var(--sith);
   background: rgba(255, 43, 43, .05);

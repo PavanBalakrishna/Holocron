@@ -252,12 +252,26 @@ export function speak(text) {
   if (!words) return;
 
   const u = new SpeechSynthesisUtterance(words);
-  if (!chosen) chosen = pickVoice();
-  if (chosen) u.voice = chosen;
+
+  const { name, pitch, rate } = voiceSettings();
+  // Re-resolve whenever the cached voice is not the one that is stored. The
+  // cache exists to avoid calling getVoices() per sentence, but trusting it
+  // blindly means a manual pick only takes effect if something happened to
+  // call refreshVoice() first — which is one code path out of several.
+  if (!chosen || (name && chosen.name !== name)) chosen = pickVoice();
+
+  if (chosen) {
+    u.voice = chosen;
+    // Setting `voice` alone is enough on desktop but NOT on Chrome for
+    // Android, which ignores it and speaks with the engine default unless the
+    // utterance also carries a matching `lang`. That is why picking a voice by
+    // hand appeared to do nothing on a phone.
+    u.lang = chosen.lang;
+  }
+
   // Low and slow is the entire effect. Both are the operator's to tune — a
   // floored pitch on a bright voice sounds damaged rather than deep, so the
   // right value depends on which voice their machine actually has.
-  const { pitch, rate } = voiceSettings();
   u.pitch = pitch;
   u.rate = rate;
   u.volume = 1;

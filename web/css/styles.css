@@ -250,6 +250,38 @@ header {
 }
 .toolcall[data-phase="error"] .tag { color: var(--sith); }
 
+/* Dictation button. Sits in the composer beside Transmit, and pulses while the
+   microphone is live so it is never ambiguous whether you are being heard. */
+.mic {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--steel);
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  cursor: pointer;
+  transition: color .16s, border-color .16s, background .16s;
+}
+.mic svg { width: 20px; height: 20px; fill: currentColor; }
+.mic:hover:enabled { color: var(--ice); border-color: var(--steel-dim); }
+.mic:disabled { color: var(--steel-dim); cursor: not-allowed; opacity: .6; }
+.mic[data-live="true"] {
+  color: var(--sith);
+  border-color: var(--sith-deep);
+  background: rgba(255, 43, 43, .08);
+  animation: micpulse 1.4s ease-in-out infinite;
+}
+@keyframes micpulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--sith-glow); }
+  50%      { box-shadow: 0 0 0 5px rgba(255, 43, 43, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mic[data-live="true"] { animation: none; }
+}
+
 button.ghost {
   font-family: var(--mono);
   font-size: 10px;

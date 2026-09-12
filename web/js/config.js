@@ -111,6 +111,32 @@ export function setNetworkMode(mode) {
   localStorage.setItem('v4d3r.network', mode);
 }
 
+/**
+ * Voice setting: 'off', 'speak' (the construct talks), or 'both' (and listens).
+ *
+ * Default off. Speaking aloud is not something to start doing to someone who
+ * did not ask, and listening needs informed consent besides — in Chrome the
+ * audio goes to Google for transcription, which is not local the way the rest
+ * of this page is.
+ */
+export function voiceMode() {
+  const v = localStorage.getItem('v4d3r.voice');
+  return v === 'speak' || v === 'both' ? v : 'off';
+}
+
+export function setVoiceMode(mode) {
+  localStorage.setItem('v4d3r.voice', mode);
+}
+
+/** Whether the operator has been told where dictation audio goes. */
+export function micConsented() {
+  return localStorage.getItem('v4d3r.micConsent') === 'yes';
+}
+
+export function setMicConsented() {
+  localStorage.setItem('v4d3r.micConsent', 'yes');
+}
+
 /** Model id the visitor has chosen, falling back to the default. */
 export function currentModel() {
   const stored = localStorage.getItem('v4d3r.model');

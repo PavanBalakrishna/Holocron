@@ -90,6 +90,17 @@
         <option value="off">Datalink off</option>
       </select>
 
+      <!--
+        Voice is off by default: speaking at someone who did not ask for it is
+        rude, and listening sends audio to Google in Chrome, which wants
+        consent rather than a quiet default.
+      -->
+      <select class="pick" id="pick-voice" aria-label="Voice">
+        <option value="off">Voice off</option>
+        <option value="speak">Voice speak</option>
+        <option value="both">Voice speak + listen</option>
+      </select>
+
       <button class="ghost" id="btn-auth">Credentials</button>
       <button class="ghost" id="btn-purge">Purge</button>
     </div>
@@ -101,6 +112,14 @@
     <form class="composer" id="composer">
       <textarea id="input" rows="1" autocomplete="off" spellcheck="true"
                 placeholder="What is thy bidding, my Master…" disabled></textarea>
+      <button id="mic" type="button" class="mic" hidden
+              aria-label="Dictate" title="Dictate">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 15a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 0 0-7 0v5.5A3.5 3.5 0 0 0 12 15z"/>
+          <path d="M6 11.5a6 6 0 0 0 12 0M12 17.5V21"
+                fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
       <button id="send" type="submit" disabled>Transmit</button>
     </form>
     <div class="hint">

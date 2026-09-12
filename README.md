@@ -177,6 +177,7 @@ web/                      ← the static console; all a static host needs
   index.html
   css/styles.css
   js/persona.js           ← THE character, and the clock. Imported by both runtimes.
+  js/voice.js             ← speechSynthesis + SpeechRecognition, Holonet only
   js/config.js            ← model params, OAuth endpoints, bridge URL
   js/auth.js              ← credential store + browser PKCE
   js/transport.js         ← holonet + bridge, one event contract
@@ -270,6 +271,26 @@ What still stands:
 **Prompt injection is the honest residual risk**, and it applies to search results as much as to fetched pages: untrusted text entering the context of a model that can fetch again. The persona prompt tells it to treat retrieved content as data and to report any instructions it finds rather than obey them, which is mitigation, not a guarantee. The blast radius is bounded by the fact that every tool the model has is an outbound request that never carries a credential.
 
 If you do not want any of this: set the DATALINK selector to `off`, or set `connect-src` back to `https://api.anthropic.com` in `web/index.html` to disable the browser half specifically. Either way it fails closed — the model is told the request failed, and nothing else breaks.
+
+## Voice
+
+Off by default. The **VOICE** selector offers `speak` (the construct talks) and `speak + listen` (a microphone button appears in the composer). Both halves use only what the browser already has — no extra service, no second API key, no CSP change.
+
+**Set expectations before you enable it: this is not Vader's voice.** `speechSynthesis` uses the voices your operating system ships, and none of them is James Earl Jones. The effect is pitch floored to `0.1` and rate slowed to `0.85` on the deepest available voice, which reads as a slow, ominous android. Atmospheric, and honestly labelled as such in the UI. The rasp, the timbre and the breathing are not reachable from a browser.
+
+It also varies per machine: macOS "Daniel" and a Windows "David" sound quite different, and a bare Linux install may have **no voices at all** — the console says so rather than failing silently.
+
+### Speaking
+
+Spoken per sentence as the reply streams, so the voice starts on the first complete clause instead of after the whole answer. Markdown is reduced before speaking — `**bold**` read aloud is "asterisk asterisk bold", and a URL is a minute of punctuation — and **fenced code blocks are skipped entirely**, because nobody wants forty lines of JavaScript recited. Halt, Purge, a new message, or switching the selector all cut the voice off immediately.
+
+### Listening
+
+**Dictation is the one part of this page that is not local.** Chrome implements `SpeechRecognition` by sending the recorded audio to Google for transcription. On a page whose whole claim is that your credential never leaves your browser, that deserves saying out loud, so the console prints a one-time warning the first time you enable it.
+
+Firefox has never implemented `SpeechRecognition`, so the microphone hides itself there rather than sitting dead. Speaking still works.
+
+Transcribed text lands in the composer **for you to review** — it is not transmitted automatically. A misheard sentence sent on its own would spend your credential on the wrong question.
 
 ## Security notes
 

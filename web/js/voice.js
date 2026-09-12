@@ -94,6 +94,29 @@ const FEMININE = [
   /(?:^|[^a-z])female/i,
 ];
 
+/**
+ * Android reports locales with an underscore (`en_AU`) rather than the BCP-47
+ * hyphen (`en-AU`). Normalise before comparing, or every locale test silently
+ * fails on exactly the devices that need it most.
+ */
+const normLang = (l) => String(l ?? '').replace(/_/g, '-');
+
+const isEnglish = (v) => /^en\b/i.test(normLang(v.lang));
+
+/**
+ * Accent preference, used only when nothing about gender can be determined —
+ * which is the common case on Android, where the engine exposes one voice per
+ * locale named "English Australia" and nothing else. Someone reaching for a
+ * Vader console is better served by British or American English than by
+ * whichever locale happened to come first in the list.
+ */
+const LOCALE_ORDER = ['en-GB', 'en-US', 'en-IE', 'en-CA', 'en-AU', 'en-NZ', 'en-ZA', 'en-IN', 'en-NG'];
+
+const localeRank = (v) => {
+  const i = LOCALE_ORDER.indexOf(normLang(v.lang));
+  return i === -1 ? LOCALE_ORDER.length : i;
+};
+
 /** Entries may be a substring or a regex; both are matched case-insensitively. */
 const matches = (name, token) =>
   token instanceof RegExp ? token.test(name) : name.toLowerCase().includes(token.toLowerCase());
@@ -127,7 +150,7 @@ function pickVoice() {
     if (exact) return exact;
   }
 
-  const english = all.filter((v) => /^en/i.test(v.lang));
+  const english = all.filter(isEnglish);
 
   // A named masculine voice, in preference order.
   const ranked = english
@@ -135,15 +158,33 @@ function pickVoice() {
     .sort((a, b) => masculineRank(a) - masculineRank(b));
   if (ranked.length) return ranked[0];
 
-  // Otherwise any English voice NOT on the feminine list. This step is the
-  // whole point: the previous version took english[0], which on macOS is
-  // Samantha and on Windows is Zira.
-  const neutral = english.find((v) => !isFeminine(v));
-  if (neutral) return neutral;
+  // Otherwise any English voice NOT on the feminine list, best accent first.
+  // The accent tiebreak matters on Android, where names carry no gender at all
+  // and every English voice lands here: without it the pick is just whichever
+  // locale the engine happened to list first.
+  const neutral = english
+    .filter((v) => !isFeminine(v))
+    .sort((a, b) => localeRank(a) - localeRank(b));
+  if (neutral.length) return neutral[0];
 
   // Out of options. An English voice of any kind still beats a voice applying
   // another language's phonology to English text.
-  return english[0] ?? all[0] ?? null;
+  return english.sort((a, b) => localeRank(a) - localeRank(b))[0] ?? all[0] ?? null;
+}
+
+/**
+ * Whether this engine says anything about gender at all.
+ *
+ * False on Android's stock engine, which names voices "English Australia" and
+ * exposes one per locale. When it is false there is no masculine voice for the
+ * page to choose -- the choice lives in the OS -- and the UI should say so
+ * rather than implying the picker can fix it.
+ */
+export function hasGenderInfo() {
+  if (!SYNTH) return false;
+  return SYNTH.getVoices()
+    .filter(isEnglish)
+    .some((v) => masculineRank(v) !== Number.MAX_SAFE_INTEGER || isFeminine(v));
 }
 
 /**
@@ -156,14 +197,20 @@ function pickVoice() {
 export function listVoices() {
   if (!SYNTH) return [];
   const all = SYNTH.getVoices();
-  const english = all.filter((v) => /^en/i.test(v.lang));
-  const rest = all.filter((v) => !/^en/i.test(v.lang));
+  const english = all.filter(isEnglish);
+  const rest = all.filter((v) => !isEnglish(v));
 
   // Likely-masculine English voices first, then the other English ones, then
-  // everything else. The operator cannot tell gender from a name they have
-  // never heard either, so ordering the list is the only help available.
+  // everything else. Within a tier, accent order decides. The operator cannot
+  // tell gender from a name they have never heard either, so ordering the list
+  // is the only help available.
   const score = (v) => (masculineRank(v) !== Number.MAX_SAFE_INTEGER ? 0 : isFeminine(v) ? 2 : 1);
-  english.sort((a, b) => score(a) - score(b) || masculineRank(a) - masculineRank(b));
+  english.sort(
+    (a, b) =>
+      score(a) - score(b) ||
+      masculineRank(a) - masculineRank(b) ||
+      localeRank(a) - localeRank(b),
+  );
 
   return [...english, ...rest];
 }
@@ -211,7 +258,7 @@ export function diagnostics() {
     '',
     'english voices:',
     ...all
-      .filter((v) => /^en/i.test(v.lang))
+      .filter(isEnglish)
       .map((v) => `  ${masculineRank(v) !== Number.MAX_SAFE_INTEGER ? 'M' : isFeminine(v) ? 'F' : '?'} ${v.name} [${v.lang}]${v.default ? ' *default' : ''}`),
   ].join('\n');
 }
@@ -227,7 +274,7 @@ export function diagnostics() {
 export function abTest() {
   if (!SYNTH) return null;
   const all = SYNTH.getVoices();
-  const english = all.filter((v) => /^en/i.test(v.lang));
+  const english = all.filter(isEnglish);
   const pool = english.length >= 2 ? english : all;
   if (pool.length < 2) return null;
 

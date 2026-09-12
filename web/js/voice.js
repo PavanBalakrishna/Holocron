@@ -20,7 +20,9 @@
  * Pitch floored and rate slowed is the whole trick.
  */
 
-import { voiceSettings } from './config.js';
+import { voiceSettings, currentCharacter } from './config.js';
+import { CHARACTERS } from './characters.js';
+import { canRoar, roar, stopRoar, unlockAudio } from './roar.js';
 
 const SYNTH = typeof speechSynthesis !== 'undefined' ? speechSynthesis : null;
 const Recognition =
@@ -309,6 +311,7 @@ if (SYNTH) {
 
 /** What the operator's machine will actually use, for display. */
 export function voiceName() {
+  if (isRoared()) return 'synthesised — Shyriiwook';
   if (!SYNTH) return 'unsupported';
   if (!chosen) chosen = pickVoice();
   if (!chosen) return voicesReady ? 'none installed' : 'loading…';
@@ -366,8 +369,34 @@ export function onSpeechIdle(cb) {
   idleCb = cb;
 }
 
-/** Queue one utterance. Silently does nothing when there is no engine. */
+/** Whether the current character is roared rather than spoken. */
+function isRoared() {
+  return CHARACTERS[currentCharacter()]?.voiceKind === 'roar';
+}
+
+/**
+ * Say one line, by whichever means this character uses.
+ *
+ * Both paths share the pending/idle bookkeeping, because hands-free
+ * conversation depends on knowing when the reply has finished making noise —
+ * and a roar is as much a reply as an utterance is.
+ */
 export function speak(text) {
+  if (isRoared()) {
+    if (!canRoar || !String(text).trim()) return;
+    pending += 1;
+    roar(text, {
+      onDone() {
+        pending = Math.max(0, pending - 1);
+        if (pending > 0 || suppressIdle) return;
+        setTimeout(() => {
+          if (pending === 0 && !suppressIdle) idleCb?.();
+        }, 200);
+      },
+    });
+    return;
+  }
+
   if (!SYNTH) return;
   const words = speakable(text);
   if (!words) return;
@@ -419,6 +448,7 @@ export function stopSpeaking() {
   // not the reply finishing, so the idle callback must not run — otherwise
   // halting a turn would reopen the microphone.
   suppressIdle = true;
+  stopRoar();
   if (SYNTH) SYNTH.cancel();
   pending = 0;
   speaking = false;
@@ -428,8 +458,17 @@ export function stopSpeaking() {
 }
 
 export function isSpeaking() {
-  return Boolean(SYNTH?.speaking) || speaking;
+  // `pending` covers the roar path, which has no engine-level `speaking` flag.
+  return pending > 0 || Boolean(SYNTH?.speaking) || speaking;
 }
+
+/** Available on this device, by whichever means this character uses. */
+export function canVoice() {
+  return isRoared() ? canRoar : canSpeak;
+}
+
+/** Let an AudioContext out of its suspended state on a user gesture. */
+export { unlockAudio };
 
 /* ------------------------------------------------- streaming sentence feed -- */
 

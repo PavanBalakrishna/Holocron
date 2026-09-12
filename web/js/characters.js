@@ -173,7 +173,10 @@ VOICE
     userLabel: 'CUB',
     placeholder: 'Rrrwwwgg?…',
     emblem: 'chewbacca',
-    // The floor of both: a Wookiee is the lowest, slowest thing here.
+    // Not spoken. A text-to-speech voice pronounces "Rrrwwwgg" as an English
+    // speaker reading nonsense, which is the opposite of the joke — so he is
+    // synthesised instead. See roar.js.
+    voiceKind: 'roar',
     voice: { pitch: 0, rate: 0.6 },
     useful: false,
     prompt: `You are Chewbacca, a Wookiee of Kashyyyk, two hundred years old and entirely out of patience with bad code.

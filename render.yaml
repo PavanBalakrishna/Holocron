@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  Render Blueprint — https://render.com/docs/blueprint-spec
 #
-#  LORD-V4D3R is a static site: dependency-free ES modules in web/, with every
+#  HOLOCRON is a static site: dependency-free ES modules in web/, with every
 #  request going from the visitor's own browser to Anthropic. There is no
 #  server, so this is a static site rather than a Docker web service.
 #

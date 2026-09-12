@@ -93,7 +93,7 @@ Being static rather than a web service is a real upgrade over the Docker deploym
 1. **Settings → Pages → Source: GitHub Actions.** Until you do this the workflow runs and fails at the deploy step, because there is no Pages site to deploy to.
 2. **Get your work onto `main`.** The workflow only triggers on `main` (plus manual runs from the Actions tab). A feature branch will not publish.
 
-Your site lands at `https://YOURNAME.github.io/YOURREPO/`. The console uses relative paths throughout, so it works from that subdirectory with no configuration.
+Your site lands at `https://YOURNAME.github.io/holocron/`. The console uses relative paths throughout, so it works from that subdirectory with no configuration — and would work just as well from a domain root.
 
 ### Anywhere else
 

@@ -69,7 +69,13 @@ const MASCULINE = [
   'Fred',
   'Rocko',
   'Arthur',
-  'male',
+  // Android's TTS engine names voices like `en-us-x-sfg#male_1-local`, so the
+  // gender marker is in the id rather than a human name. This must be a regex,
+  // not the substring 'male': "female" CONTAINS "male", and as a plain
+  // substring this entry matched every feminine Android voice and ranked it
+  // masculine — which is exactly how Chrome on Android kept picking one.
+  // `[^a-z]` under /i excludes A-Z too, so the 'e' of "female" blocks it.
+  /(?:^|[^a-z])male/i,
 ];
 
 /**
@@ -85,12 +91,20 @@ const FEMININE = [
   'Microsoft Jenny', 'Microsoft Michelle', 'Microsoft Sonia', 'Microsoft Natasha',
   'Microsoft Clara', 'Microsoft Libby', 'Microsoft Maisie', 'Microsoft Ana',
   'Google UK English Female', 'Google US English',
-  'female',
+  /(?:^|[^a-z])female/i,
 ];
 
-const isFeminine = (v) => FEMININE.some((n) => v.name.toLowerCase().includes(n.toLowerCase()));
+/** Entries may be a substring or a regex; both are matched case-insensitively. */
+const matches = (name, token) =>
+  token instanceof RegExp ? token.test(name) : name.toLowerCase().includes(token.toLowerCase());
+
+const isFeminine = (v) => FEMININE.some((t) => matches(v.name, t));
+
 const masculineRank = (v) => {
-  const i = MASCULINE.findIndex((n) => v.name.toLowerCase().includes(n.toLowerCase()));
+  // Feminine wins outright. Belt and braces alongside the regex above: a voice
+  // that somehow satisfies both lists must not be ranked masculine.
+  if (isFeminine(v)) return Number.MAX_SAFE_INTEGER;
+  const i = MASCULINE.findIndex((t) => matches(v.name, t));
   return i === -1 ? Number.MAX_SAFE_INTEGER : i;
 };
 

@@ -204,6 +204,8 @@ Choices persist per browser (`v4d3r.voiceName`, `v4d3r.voicePitch`, `v4d3r.voice
 
 `Automatic` uses the name-matching in `web/js/voice.js`, which is only a default; an explicit choice always wins.
 
+**A caveat for Android:** Chrome there reports voices by engine id — `en-us-x-sfg#male_1-local` — so the gender marker is in the id rather than a human name. Those are matched by regex, not substring, because *"female" contains "male"* and a naive `includes('male')` ranks every feminine Android voice as masculine. Some Android setups report only a locale (`English (United States)`) with no marker at all; nothing can be inferred there, so pick from the panel.
+
 **On gender: the Web Speech API does not expose it.** A voice has a name, a language and a `default` flag — no gender field, no hint. So matching a masculine voice for a character who has one can only be guessed from names, which is what `MASCULINE` and `FEMININE` in `voice.js` are for. The first list ranks known male voices across macOS, Windows, Chrome, Android and espeak; the second exists only so the fallback steps *over* names like Samantha and Zira instead of taking the first English voice, which is how a Vader console ended up sounding like a woman. Neither list filters the picker — every voice your system has stays selectable, and likely-masculine ones are simply sorted to the top, since you cannot tell gender from a name you have never heard either.
 
 ### Speaking

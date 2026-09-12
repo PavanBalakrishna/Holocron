@@ -603,6 +603,31 @@ dialog .body { padding: 18px 20px 20px; }
   font-variant-numeric: tabular-nums;
 }
 
+/* Diagnostics. Collapsed by default — it exists for when something is wrong,
+   not as part of the normal panel. */
+.diag { margin: 14px 0 4px; }
+.diag summary {
+  cursor: pointer;
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--steel-dim);
+}
+.diag summary:hover { color: var(--steel); }
+.diag pre {
+  margin: 10px 0;
+  padding: 10px;
+  max-height: 190px;
+  overflow: auto;
+  background: var(--void);
+  border: 1px solid var(--grid);
+  color: var(--steel);
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .actions button {
   font-family: var(--mono);

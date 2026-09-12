@@ -200,10 +200,17 @@
 
       <div class="actions">
         <button type="button" class="primary" id="voice-test">Speak a line</button>
+        <button type="button" id="voice-ab">A/B test</button>
         <button type="button" id="voice-reset">Reset</button>
         <button type="submit" id="voice-done">Done</button>
       </div>
     </form>
+
+    <details class="diag">
+      <summary>Diagnostics</summary>
+      <pre id="voice-diag"></pre>
+      <button type="button" class="ghost" id="voice-copy">Copy</button>
+    </details>
 
     <div class="notice" id="voice-note">
       <b>Tune the voice first, then the pitch.</b>

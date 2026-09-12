@@ -206,6 +206,12 @@ Choices persist per browser (`v4d3r.voiceName`, `v4d3r.voicePitch`, `v4d3r.voice
 
 Every utterance carries `lang` as well as `voice`. That is not redundant: **Chrome for Android ignores `voice` on its own** and speaks with the engine default unless the utterance also has a matching `lang`, which makes a hand-picked voice look like it did nothing.
 
+### When the voice will not change
+
+The panel has a **Diagnostics** block (what the engine reports, what is stored, what resolved, and every English voice tagged M/F/unknown) and an **A/B test** button that speaks one line in two deliberately different voices.
+
+That button is the decisive check. **If both sound identical, the browser is ignoring the page's choice** and using the system default — a known behaviour of Chrome on Android, and not something a web page can override. The voice then lives in the OS: Android Settings → Accessibility (or General management) → Text-to-speech output. If they sound different, voice switching works and the problem is the selection, which Diagnostics will show.
+
 **A caveat for Android:** Chrome there reports voices by engine id — `en-us-x-sfg#male_1-local` — so the gender marker is in the id rather than a human name. Those are matched by regex, not substring, because *"female" contains "male"* and a naive `includes('male')` ranks every feminine Android voice as masculine. Some Android setups report only a locale (`English (United States)`) with no marker at all; nothing can be inferred there, so pick from the panel.
 
 **On gender: the Web Speech API does not expose it.** A voice has a name, a language and a `default` flag — no gender field, no hint. So matching a masculine voice for a character who has one can only be guessed from names, which is what `MASCULINE` and `FEMININE` in `voice.js` are for. The first list ranks known male voices across macOS, Windows, Chrome, Android and espeak; the second exists only so the fallback steps *over* names like Samantha and Zira instead of taking the first English voice, which is how a Vader console ended up sounding like a woman. Neither list filters the picker — every voice your system has stays selectable, and likely-masculine ones are simply sorted to the top, since you cannot tell gender from a name you have never heard either.

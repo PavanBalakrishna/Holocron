@@ -187,6 +187,65 @@ export function onVoicesReady(cb) {
   }, 1500);
 }
 
+/**
+ * Everything the console knows about this device's speech engine.
+ *
+ * This exists because the same symptom — "it still sounds like a woman" — has
+ * several unrelated causes that are indistinguishable from the outside: a
+ * stored choice overriding the automatic pick, an engine reporting no usable
+ * names, or a browser ignoring `voice` altogether. Guessing between them from
+ * a description wastes everyone's time; this reports the facts instead.
+ */
+export function diagnostics() {
+  if (!SYNTH) return 'speechSynthesis: unavailable';
+  const all = SYNTH.getVoices();
+  const { name, pitch, rate } = voiceSettings();
+  const picked = chosen ?? pickVoice();
+
+  return [
+    `voices reported : ${all.length}`,
+    `stored choice   : ${name || '(automatic)'}`,
+    `resolved to     : ${picked ? `${picked.name} [${picked.lang}]` : '(none)'}`,
+    `pitch / rate    : ${pitch} / ${rate}`,
+    `ua              : ${navigator.userAgent}`,
+    '',
+    'english voices:',
+    ...all
+      .filter((v) => /^en/i.test(v.lang))
+      .map((v) => `  ${masculineRank(v) !== Number.MAX_SAFE_INTEGER ? 'M' : isFeminine(v) ? 'F' : '?'} ${v.name} [${v.lang}]${v.default ? ' *default' : ''}`),
+  ].join('\n');
+}
+
+/**
+ * Speak the same line twice with two deliberately different voices.
+ *
+ * The decisive test. If both sound identical, this browser is ignoring the
+ * `voice` property and using the system default — which is a known behaviour of
+ * Chrome on Android, and is not something a web page can override. Knowing that
+ * turns an unfixable-seeming bug into an OS setting.
+ */
+export function abTest() {
+  if (!SYNTH) return null;
+  const all = SYNTH.getVoices();
+  const english = all.filter((v) => /^en/i.test(v.lang));
+  const pool = english.length >= 2 ? english : all;
+  if (pool.length < 2) return null;
+
+  const first = pool[0];
+  const last = pool[pool.length - 1];
+
+  SYNTH.cancel();
+  for (const [v, label] of [[first, 'This is the first voice.'], [last, 'And this is the second voice.']]) {
+    const u = new SpeechSynthesisUtterance(label);
+    u.voice = v;
+    u.lang = v.lang;
+    u.pitch = 1;   // Neutral: the effect settings would mask the difference.
+    u.rate = 1;
+    SYNTH.speak(u);
+  }
+  return { first: first.name, last: last.name };
+}
+
 /** Re-resolve the voice after the operator changes their choice. */
 export function refreshVoice() {
   chosen = pickVoice();

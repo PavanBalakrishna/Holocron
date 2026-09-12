@@ -161,7 +161,7 @@ function growl(at, dur, f0, heat, shape, out) {
   const sum = ctx.createGain();
   sum.gain.value = 1;
 
-  const FORMANT_GAIN = [2.2, 1.25, 0.45];
+  const FORMANT_GAIN = [4.4, 2.6, 0.95];
   for (let i = 0; i < 3; i += 1) {
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
@@ -180,23 +180,74 @@ function growl(at, dur, f0, heat, shape, out) {
     active.push(bp, g);
   }
 
+  // SUBHARMONICS — the actual anatomy of a growl. When vocal folds go rough
+  // they period-double, producing energy at f0/2 and f0/3 that is not present
+  // in ordinary speech. This is what makes a big animal sound big, and no
+  // amount of filtering a plain fundamental substitutes for it. It is also
+  // where the bass comes from.
+  const subOsc = ctx.createOscillator();
+  subOsc.type = 'sawtooth';
+  subOsc.frequency.setValueAtTime(f0 * 0.36, at);
+  subOsc.frequency.exponentialRampToValueAtTime(f0 * (0.75 + heat * 0.25), at + dur * 0.35);
+  subOsc.frequency.exponentialRampToValueAtTime(f0 * 0.28, end);
+
+  const subLp = ctx.createBiquadFilter();
+  subLp.type = 'lowpass';
+  subLp.frequency.value = 260;
+  subLp.Q.value = 0.9;
+
+  const subGain = ctx.createGain();
+  subGain.gain.value = 0.62 + heat * 0.22;
+  subOsc.connect(subLp).connect(subGain).connect(sum);
+
+  // Chest weight. Kept around 50-95 Hz rather than an octave lower still: the
+  // first pass sat at 20-45 Hz, which phone and laptop speakers cannot
+  // reproduce at all — it ate headroom and delivered nothing audible.
+  const weight = ctx.createOscillator();
+  weight.type = 'triangle';
+  weight.frequency.setValueAtTime(f0 * 0.5, at);
+  weight.frequency.exponentialRampToValueAtTime(f0 * 0.38, end);
+  const weightGain = ctx.createGain();
+  weightGain.gain.value = 0.32;
+  weight.connect(weightGain).connect(sum);
+
   // A little unfiltered source keeps the chest in, since bandpasses alone
   // sound thin and nasal.
   const body = ctx.createGain();
-  body.gain.value = 0.34;
+  body.gain.value = 0.5;
   const chest = ctx.createBiquadFilter();
   chest.type = 'lowpass';
-  chest.frequency.value = 320;
+  chest.frequency.value = 400;
   bank.connect(chest).connect(body).connect(sum);
 
-  // The growl proper: amplitude roughness at vocal-fold rate.
-  const tremolo = ctx.createOscillator();
-  tremolo.type = 'sine';
-  tremolo.frequency.setValueAtTime(26 + heat * 16, at);
-  tremolo.frequency.linearRampToValueAtTime(18 + heat * 12, end);
+  for (const node of [subOsc, weight]) {
+    node.start(at);
+    node.stop(end + 0.02);
+    active.push(node);
+  }
+  active.push(subLp, subGain, weightGain);
+
+  // Roughness WITHOUT periodicity. A clean sine LFO here is what made the
+  // earlier version sound like a motorbike: 26-42 Hz of regular amplitude
+  // pulsing is an engine firing rate, and the ear names it instantly. A real
+  // growl is irregular, so the modulation is low-passed noise instead — same
+  // roughness, no rhythm to lock onto.
+  const wobbleSrc = noise();
+
+  // Two lowpass stages, not one. Measured, a single biquad at 8 Hz still left
+  // a 17 Hz bump in the amplitude envelope — a 12 dB/octave rolloff is not
+  // steep enough, and 17 Hz is squarely motorbike-idle territory. Cascading
+  // doubles the slope and puts the modulation where a growl flutter lives.
+  const wobbleLp = ctx.createBiquadFilter();
+  wobbleLp.type = 'lowpass';
+  wobbleLp.frequency.value = 4.5 + heat * 3;
+  const wobbleLp2 = ctx.createBiquadFilter();
+  wobbleLp2.type = 'lowpass';
+  wobbleLp2.frequency.value = 5 + heat * 3;
+
   const tremoloDepth = ctx.createGain();
-  tremoloDepth.gain.value = 0.22 + heat * 0.18;
-  tremolo.connect(tremoloDepth);
+  tremoloDepth.gain.value = 0.26 + heat * 0.16;
+  wobbleSrc.connect(wobbleLp).connect(wobbleLp2).connect(tremoloDepth);
 
   const env = ctx.createGain();
   env.gain.setValueAtTime(0.0001, at);
@@ -207,12 +258,12 @@ function growl(at, dur, f0, heat, shape, out) {
 
   sum.connect(env).connect(out);
 
-  for (const node of [osc, jitter, breath, tremolo]) {
+  for (const node of [osc, jitter, breath, wobbleSrc]) {
     node.start(at);
     node.stop(end + 0.02);
     active.push(node);
   }
-  active.push(bank, sum, body, chest, env, jitterDepth, breathGain, tremoloDepth);
+  active.push(bank, sum, body, chest, env, jitterDepth, breathGain, tremoloDepth, wobbleLp, wobbleLp2);
 }
 
 /**
@@ -250,7 +301,7 @@ export function roar(text, { onDone } = {}) {
   throat.Q.value = 0.7;
 
   const master = ctx.createGain();
-  master.gain.value = 0.95;
+  master.gain.value = 0.42;
 
   // Three sources sum into each growl's envelope, and overlapping tails push
   // the total past full scale — measured at 1.36 before this, which clips
@@ -270,10 +321,12 @@ export function roar(text, { onDone } = {}) {
   const start = Math.max(ctx.currentTime + 0.04, queueEndsAt + 0.16);
   let t = start;
   for (const token of tokens) {
-    const dur = Math.min(1.7, 0.3 + token.length * 0.085 + rand() * 0.2);
-    // Higher than a rumble. Chewbacca moans and keens; he does not idle like a
-    // diesel, which is where the first attempt at this sat.
-    const f0 = 125 + rand() * 70 + heat * 40;
+    // Longer. A roar needs room to travel; short bursts read as barks.
+    const dur = Math.min(2.2, 0.45 + token.length * 0.1 + rand() * 0.25);
+    // Lower than the formant rebuild, higher than the original rumble. The
+    // weight now comes from the subharmonics rather than from dragging the
+    // fundamental into the basement, which is what made it a diesel.
+    const f0 = 105 + rand() * 55 + heat * 30;
     const shape = SHAPES[Math.floor(rand() * SHAPES.length)];
     growl(t, dur, f0, heat, shape, throat);
     t += dur + 0.04 + rand() * 0.08;

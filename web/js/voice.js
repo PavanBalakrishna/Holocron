@@ -20,6 +20,8 @@
  * Pitch floored and rate slowed is the whole trick.
  */
 
+import { voiceSettings } from './config.js';
+
 const SYNTH = typeof speechSynthesis !== 'undefined' ? speechSynthesis : null;
 const Recognition =
   typeof window !== 'undefined'
@@ -32,10 +34,13 @@ export const canListen = Boolean(Recognition);
 /* ----------------------------------------------------------------- voice -- */
 
 /**
- * Voices the OS is most likely to make sound imposing, best first. Matched as
- * substrings because vendors decorate the names ("Microsoft David Desktop").
- * A miss is not a failure: we fall through to any English voice, then to the
- * browser default, which still gets pitch and rate applied.
+ * Fallback order when the operator has not chosen a voice: the ones an OS is
+ * most likely to make sound imposing, best first. Matched as substrings because
+ * vendors decorate the names ("Microsoft David Desktop"). A miss is not a
+ * failure — we fall through to any English voice, then to the browser default,
+ * which still gets pitch and rate applied.
+ *
+ * This list only decides the default. An explicit choice always wins.
  */
 const PREFERRED = [
   'Google UK English Male',
@@ -57,6 +62,16 @@ function pickVoice() {
   if (!all.length) return null;
 
   voicesReady = true;
+
+  // An explicit choice wins outright. If that voice has since disappeared —
+  // a different machine, an uninstalled language pack — fall through rather
+  // than go silent.
+  const { name } = voiceSettings();
+  if (name) {
+    const exact = all.find((v) => v.name === name);
+    if (exact) return exact;
+  }
+
   for (const want of PREFERRED) {
     const hit = all.find((v) => v.name.includes(want));
     if (hit) return hit;
@@ -64,6 +79,46 @@ function pickVoice() {
   // Anything English beats a voice speaking English text in another language's
   // phonology.
   return all.find((v) => /^en/i.test(v.lang)) ?? all[0] ?? null;
+}
+
+/**
+ * Voices worth offering, English first.
+ *
+ * The full list on some systems runs to a hundred entries in languages the
+ * console does not speak, so English leads and the rest follow rather than
+ * being hidden — somebody may genuinely want a different one.
+ */
+export function listVoices() {
+  if (!SYNTH) return [];
+  const all = SYNTH.getVoices();
+  const english = all.filter((v) => /^en/i.test(v.lang));
+  const rest = all.filter((v) => !/^en/i.test(v.lang));
+  return [...english, ...rest];
+}
+
+/**
+ * Call back once the engine has published its voice list.
+ *
+ * getVoices() is empty on first call in most browsers, so any UI that lists
+ * voices has to be built twice: once optimistically, once when this fires.
+ */
+export function onVoicesReady(cb) {
+  if (!SYNTH) return;
+  if (SYNTH.getVoices().length) {
+    cb();
+    return;
+  }
+  SYNTH.addEventListener?.('voiceschanged', () => cb(), { once: true });
+  // Safari has been known not to fire the event at all.
+  setTimeout(() => {
+    if (SYNTH.getVoices().length) cb();
+  }, 1500);
+}
+
+/** Re-resolve the voice after the operator changes their choice. */
+export function refreshVoice() {
+  chosen = pickVoice();
+  return chosen;
 }
 
 if (SYNTH) {
@@ -127,9 +182,12 @@ export function speak(text) {
   const u = new SpeechSynthesisUtterance(words);
   if (!chosen) chosen = pickVoice();
   if (chosen) u.voice = chosen;
-  // The floor of the allowed range, and slow. This is the entire effect.
-  u.pitch = 0.1;
-  u.rate = 0.85;
+  // Low and slow is the entire effect. Both are the operator's to tune — a
+  // floored pitch on a bright voice sounds damaged rather than deep, so the
+  // right value depends on which voice their machine actually has.
+  const { pitch, rate } = voiceSettings();
+  u.pitch = pitch;
+  u.rate = rate;
   u.volume = 1;
   u.onstart = () => {
     speaking = true;

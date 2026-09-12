@@ -128,6 +128,42 @@ export function setVoiceMode(mode) {
   localStorage.setItem('v4d3r.voice', mode);
 }
 
+/**
+ * Which voice to speak with, and how.
+ *
+ * An empty name means "decide automatically" — voice.js keeps a preference list
+ * for that. Storing the name rather than an index matters because the voice
+ * list is machine-specific and its order is not stable between browsers.
+ *
+ * Pitch and rate are clamped on read, not on write: a value that arrives from
+ * an older build or a hand-edited localStorage must not be able to produce an
+ * utterance the speech engine rejects.
+ */
+export function voiceSettings() {
+  const num = (key, fallback, lo, hi) => {
+    const raw = localStorage.getItem(key);
+    // An absent key must be tested before conversion: Number(null) is 0, which
+    // is perfectly finite, so a isFinite() check alone silently turns "unset"
+    // into "zero" — and a zero pitch is not the default, it is a monotone.
+    if (raw === null || raw === '') return fallback;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(hi, Math.max(lo, n));
+  };
+  return {
+    name: localStorage.getItem('v4d3r.voiceName') ?? '',
+    // The spec allows pitch 0–2 and rate 0.1–10; the useful range is narrower.
+    pitch: num('v4d3r.voicePitch', 0.1, 0, 2),
+    rate: num('v4d3r.voiceRate', 0.85, 0.5, 2),
+  };
+}
+
+export function setVoiceSettings({ name, pitch, rate }) {
+  if (name !== undefined) localStorage.setItem('v4d3r.voiceName', name);
+  if (pitch !== undefined) localStorage.setItem('v4d3r.voicePitch', String(pitch));
+  if (rate !== undefined) localStorage.setItem('v4d3r.voiceRate', String(rate));
+}
+
 /** Whether the operator has been told where dictation audio goes. */
 export function micConsented() {
   return localStorage.getItem('v4d3r.micConsent') === 'yes';

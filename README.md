@@ -188,9 +188,21 @@ If you do not want any of this: set the DATALINK selector to `off`, or set `conn
 
 Off by default. The **VOICE** selector offers `speak` (the construct talks) and `speak + listen` (a microphone button appears in the composer). Both halves use only what the browser already has — no extra service, no second API key, no CSP change.
 
-**Set expectations before you enable it: this is not Vader's voice.** `speechSynthesis` uses the voices your operating system ships, and none of them is James Earl Jones. The effect is pitch floored to `0.1` and rate slowed to `0.85` on the deepest available voice, which reads as a slow, ominous android. Atmospheric, and honestly labelled as such in the UI. The rasp, the timbre and the breathing are not reachable from a browser.
+**Set expectations before you enable it: this is not Vader's voice.** `speechSynthesis` uses the voices your operating system ships, and none of them is James Earl Jones. The default is pitch `0.1` and rate `0.85` on the deepest voice available, which reads as a slow, ominous android. Atmospheric, and honestly labelled as such in the UI. The rasp, the timbre and the breathing are not reachable from a browser.
 
-It also varies per machine: macOS "Daniel" and a Windows "David" sound quite different, and a bare Linux install may have **no voices at all** — the console says so rather than failing silently.
+### Tuning it — the VOCODER panel
+
+Because the voice list is machine-specific, the right settings are too, so they are the visitor's to choose rather than hardcoded. A **Vocoder** button appears beside the selector whenever voice is on, opening a panel with:
+
+- every voice the machine reports, English first, each labelled with its language — a German voice reading English is unintelligible, and the name alone does not always give that away
+- **pitch** (0–2) and **rate** (0.5–2) sliders
+- a line spoken on every change, so you tune by ear rather than by guessing
+
+**Tune the voice first, then the pitch.** A floored pitch on a bright voice sounds *damaged*, not deep — if the best your system offers is cheerful, try `0.4`–`0.5` rather than `0.1`. Reset restores the defaults.
+
+Choices persist per browser (`v4d3r.voiceName`, `v4d3r.voicePitch`, `v4d3r.voiceRate`). A stored voice that is missing on the current machine stays visible in the list as "not installed here" rather than silently reverting, and speech falls back to the automatic pick so it never goes mute. If the system reports no voices at all — a bare Linux box — the panel says so, and says what is usually missing.
+
+`Automatic` keeps the built-in preference list in `web/js/voice.js`, which is only a default; an explicit choice always wins.
 
 ### Speaking
 

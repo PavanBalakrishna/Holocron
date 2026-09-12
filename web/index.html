@@ -99,6 +99,8 @@
         <option value="both">Voice speak + listen</option>
       </select>
 
+      <button class="ghost" id="btn-vocoder" hidden>Vocoder</button>
+
       <button class="ghost" id="btn-auth">Credentials</button>
       <button class="ghost" id="btn-purge">Purge</button>
     </div>
@@ -168,6 +170,47 @@
       OAuth token may not.
       <b>A word of advice:</b> use a dedicated key with a spend limit. An Anthropic key is
       account-wide and carries your billing.
+    </div>
+  </div>
+</dialog>
+
+<dialog id="vocoder">
+  <div class="head">
+    <h2>VOCODER</h2>
+    <p>Which voice speaks, and how. Voices come from <b>your operating system</b>, so this list
+       differs from machine to machine — and none of them is the real thing.</p>
+  </div>
+
+  <div class="body">
+    <form id="vocoder-form" method="dialog">
+      <div class="field">
+        <label for="voice-name">Voice</label>
+        <select id="voice-name"></select>
+      </div>
+
+      <div class="field">
+        <label for="voice-pitch">Pitch &mdash; <span id="voice-pitch-val">0.10</span></label>
+        <input id="voice-pitch" type="range" min="0" max="2" step="0.05" />
+      </div>
+
+      <div class="field">
+        <label for="voice-rate">Rate &mdash; <span id="voice-rate-val">0.85</span></label>
+        <input id="voice-rate" type="range" min="0.5" max="2" step="0.05" />
+      </div>
+
+      <div class="actions">
+        <button type="button" class="primary" id="voice-test">Speak a line</button>
+        <button type="button" id="voice-reset">Reset</button>
+        <button type="submit" id="voice-done">Done</button>
+      </div>
+    </form>
+
+    <div class="notice" id="voice-note">
+      <b>Tune the voice first, then the pitch.</b>
+      A floored pitch on a bright voice sounds damaged rather than deep — if the best voice your
+      system offers is a cheerful one, try 0.4&ndash;0.5 instead of 0.1.
+      <b>Nothing here is stored anywhere but this browser,</b> and changes apply to the next thing
+      spoken.
     </div>
   </div>
 </dialog>

@@ -10,11 +10,13 @@ A holocron is the Star Wars device that stores a master's knowledge and manifest
 | **Master Yoda** | student | teaches as well as answers |
 | **Obi-Wan Kenobi** | Padawan | warm, exacting, dryly amused |
 | **Luke Skywalker** | fellow pilot | plain, earnest, no ceremony |
-| **Chewbacca** | cub | Shyriiwook, with the answer in the translation |
+| **Chewbacca** | cub | pure Shyriiwook — no English, no answer |
 
 Pick one from the header and the console follows: system prompt, how you are addressed, palette, emblem, greeting, and the pitch and rate of the voice. Switching clears the conversation — a holocron holds one personality at a time, and replaying one character's words as another's would be a lie to the model as much as to you.
 
-**Chewbacca is a gag that still has to work.** He answers only in growls, with a bracketed translation underneath — and the translation carries the entire answer, code blocks and all. A funny growl over a thin answer is a failed reply, and his prompt says so.
+**Chewbacca is a gag, and only a gag.** He replies in Shyriiwook and nothing else: no translation, no bracketed gloss, no helpful note at the end. Length and heat are his only instruments — a short "Wgh." is a different answer from a long rolling roar. He will not help you, and that is the point.
+
+He is the one character who does not inherit the shared substance rules, because "the persona is delivery, accuracy is not negotiable" directly contradicts answering in growls. What he inherits instead keeps the two things that matter: **ask him to speak English or drop the act and he complies immediately and fully**, and if someone is in genuine distress he drops the character entirely. A joke nobody can escape stops being one.
 
 ---
 
